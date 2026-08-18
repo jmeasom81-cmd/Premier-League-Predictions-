@@ -1,0 +1,10 @@
+{
+  "name":"Premier League Predictions",
+  "short_name":"PL Predictions",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#f6f6fb",
+  "theme_color":"#241153",
+  "description":"Private Premier League score predictions league for friends."
+}
