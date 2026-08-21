@@ -153,5 +153,6 @@ setInterval(async()=>{if(session&&membership&&view==='chat'){await load();chatPa
 setInterval(async()=>{if(session&&membership&&['home','table','stats','ai','more'].includes(view)){if(view==='stats')statsLoaded=false;await load();render()}},60000);
 init();
 </script>
+<script type="module" src="./home-enhancer.js"></script>
 </body>
 </html>
