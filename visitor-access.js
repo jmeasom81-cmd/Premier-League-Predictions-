@@ -9,14 +9,14 @@ const vaSb=createClient(
 );
 
 const VA_KEY='plp_visitor_invite';
-let vaCode=(new URLSearchParams(location.search).get('visit')||localStorage.getItem(VA_KEY)||'').trim().toUpperCase();
+let vaCode=(new URLSearchParams(location.search).get('visit')||'').trim().toUpperCase();
 let vaVisitor=false;
 let vaMembership=null;
 let vaVisitorNames=[];
 let vaApplying=false;
 let vaObsTimer=null;
 
-if(vaCode)localStorage.setItem(VA_KEY,vaCode);
+localStorage.removeItem(VA_KEY);
 
 function vaCss(){
   if(document.getElementById('va-v1-css'))return;
