@@ -42,9 +42,9 @@ function pcCss(){
     .pcHero p{font-size:9.7px;line-height:1.45;margin:5px 0 0;color:rgba(255,255,255,.82)}
     .pcHeroBadge{font-size:8px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;background:rgba(255,255,255,.13);padding:6px 7px;border-radius:999px;white-space:nowrap}
     .pcFour{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:13px}
-    .pcMini{background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:9px}
-    .pcMini span{display:block;font-size:7.5px;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.66)}
-    .pcMini b{display:block;font-size:12px;margin-top:3px;color:#fff}
+    .pcMini{background:#fff;border:1px solid rgba(255,255,255,.35);border-radius:12px;padding:9px}
+.pcMini span{display:block;font-size:7.5px;text-transform:uppercase;letter-spacing:.07em;color:#756f82;font-weight:900}
+.pcMini b{display:block;font-size:12px;margin-top:3px;color:#241153;font-weight:950}
     .pcCard{background:rgba(255,255,255,.98);border:1px solid #e7e4ef;border-radius:18px;padding:14px;margin-bottom:11px;box-shadow:0 8px 24px rgba(25,18,65,.05)}
     .pcCardHead{display:flex;justify-content:space-between;gap:9px;align-items:flex-start;margin-bottom:8px}
     .pcCardHead h3{font-size:15px;color:#241153;margin:0}
