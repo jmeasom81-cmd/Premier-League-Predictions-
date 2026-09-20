@@ -1,4 +1,4 @@
-// OWNER MESSAGE GENERATOR V1.1
+// OWNER MESSAGE GENERATOR V1.2
 // Flexible owner-only WhatsApp/Home message generator using real league data.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -461,15 +461,74 @@ function mgTableSection(s,d){
   return (s.tone==='serious'?'Current top 3':'🏆 Top of the table')+'\n'+line;
 }
 
-function mgChangeSection(s,d){
+function mgScopedChanges(d){
   const a=d.changes||{};
-  const best=mgArr(a.best_changes)[0];
-  const worst=mgArr(a.worst_changes)[0];
+  const fixtureIds=new Set((d.scoped||[]).map(x=>String(x.fixture_id||'')));
+  const weeks=new Set((d.sampleMatchweeks||[]).map(Number));
+
+  const inScope=x=>{
+    if(!x)return false;
+    if(d.scope==='matchweek')return Number(x.matchweek)===Number(d.base?.matchweek||0);
+    if(d.scope==='last6')return weeks.has(Number(x.matchweek||0));
+    if(d.scope==='matchday')return fixtureIds.has(String(x.fixture_id||''));
+    return true;
+  };
+
+  // best_changes/worst_changes do not always expose fixture_id, but do expose
+  // matchweek. For a matchday, fall back to matching the fixture label.
+  const fixtures=new Set((d.scoped||[]).map(x=>`${x.home_team} v ${x.away_team}`));
+  const inScopeSafe=x=>{
+    if(!x)return false;
+    if(d.scope==='matchday'){
+      return fixtures.has(String(x.fixture||'')) || fixtureIds.has(String(x.fixture_id||''));
+    }
+    return inScope(x);
+  };
+
+  return {
+    best:mgArr(a.best_changes).filter(inScopeSafe),
+    worst:mgArr(a.worst_changes).filter(inScopeSafe)
+  };
+}
+
+function mgChangeLine(prefix,x,s){
+  if(!x)return '';
+  const impact=mgNum(x.impact);
+  const impactText=(impact>0?'+':'')+impact+' pts';
+  const fixture=x.fixture||'Fixture';
+  const actual=x.actual? ` · FT ${x.actual}` : '';
+  const prediction=`${x.initial||'?'} → ${x.final||'?'}`;
+
+  if(s.length==='short'){
+    return `${prefix}: ${mgTeam(x)} — ${fixture}: ${prediction} · ${impactText}`;
+  }
+
+  return `${prefix}: ${mgTeam(x)}\n${fixture} · ${prediction}${actual} · ${impactText}`;
+}
+
+function mgChangeSection(s,d){
+  const scoped=mgScopedChanges(d);
+  const best=scoped.best[0];
+  const worst=scoped.worst[0];
   if(!best&&!worst)return '';
+
   const lines=[];
-  if(best)lines.push(`${mgEmoji('🧠',s.emoji)}Best rethink: ${mgTeam(best)} ${best.initial||''} → ${best.final||''} · +${Math.abs(mgNum(best.impact))} pts`);
-  if(worst&&s.length!=='short')lines.push(`${mgEmoji('🤦',s.emoji)}Costly rethink: ${mgTeam(worst)} ${worst.initial||''} → ${worst.final||''} · ${mgNum(worst.impact)} pts`);
-  return (s.tone==='serious'?'Prediction changes':'🧠 Second thoughts')+'\n'+lines.join('\n');
+  if(best){
+    lines.push(mgChangeLine(
+      `${mgEmoji('🧠',s.emoji)}Best rethink`,
+      best,
+      s
+    ));
+  }
+  if(worst&&s.length!=='short'){
+    lines.push(mgChangeLine(
+      `${mgEmoji('🤦',s.emoji)}Costly rethink`,
+      worst,
+      s
+    ));
+  }
+
+  return (s.tone==='serious'?'Prediction changes':'🧠 Second thoughts')+'\n'+lines.join('\n\n');
 }
 
 function mgPromptSection(s,d){
