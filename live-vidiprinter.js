@@ -1,4 +1,4 @@
-// LIVE VIDIPRINTER V1
+// LIVE VIDIPRINTER V1.1
 // Persistent Match Centre story feed: goals, VAR reversals, score corrections and full time.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -162,8 +162,15 @@ function lvMarkup(){
   const events=lvEvents||[];
   const hasChecking=events.some(e=>e.event_status==='provisional');
   const shown=lvShowAll?events:events.slice(0,3);
+  const signature=[
+    lvShowAll?'all':'latest',
+    ...events.map(e=>[
+      e.id,e.event_type,e.event_status,e.minute,
+      e.home_score,e.away_score,e.impact_primary,e.impact_secondary
+    ].join(':'))
+  ].join('|');
 
-  return `<section class="lvPanel ${hasChecking?'lvPulse':''}" data-lv-panel>
+  return `<section class="lvPanel ${hasChecking?'lvPulse':''}" data-lv-panel data-lv-signature="${lvEsc(signature)}">
     <div class="lvHead">
       <div class="lvHeadLeft">
         <div class="lvKicker"><span class="lvDot"></span> Live feed</div>
@@ -187,8 +194,10 @@ function lvInsert(){
   wrap.innerHTML=lvMarkup();
   const fresh=wrap.firstElementChild;
 
-  if(old)old.replaceWith(fresh);
-  else{
+  if(old){
+    if(old.dataset.lvSignature===fresh.dataset.lvSignature)return;
+    old.replaceWith(fresh);
+  }else{
     const provider=body.querySelector('.mc3Fresh');
     if(provider)provider.insertAdjacentElement('afterend',fresh);
     else body.prepend(fresh);
@@ -218,7 +227,18 @@ function lvSchedule(){
 lvCss();
 
 const lvObserver=new MutationObserver(()=>{
-  if(document.querySelector('.mc3Overlay'))lvSchedule();
+  const overlay=document.querySelector('.mc3Overlay');
+  if(!overlay)return;
+
+  // Match Centre periodically rebuilds its body. Reinsert the already-loaded
+  // feed synchronously in the observer microtask so there is no visible
+  // disappear/reappear jump between paints.
+  const body=overlay.querySelector('.mc3Body');
+  if(body && !body.querySelector('[data-lv-panel]') && lvLoadedAt){
+    lvInsert();
+  }
+
+  lvSchedule();
 });
 lvObserver.observe(document.body,{childList:true,subtree:true});
 
