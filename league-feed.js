@@ -287,6 +287,7 @@ function lfInject(){
   if(!lfHomeActive())return;
   const host=document.querySelector('.hfHost');
   if(!host)return;
+
   let slot=host.querySelector('.hfLeagueFeedSlot');
   if(!slot){
     slot=document.createElement('div');
@@ -295,9 +296,61 @@ function lfInject(){
     if(pred)pred.insertAdjacentElement('afterend',slot);
     else host.prepend(slot);
   }
+
+  const signature=JSON.stringify({
+    messages:lfMessages.map(m=>({
+      id:m.id,
+      title:m.title,
+      body:m.body,
+      private:m.private,
+      source_type:m.source_type,
+      my_reaction:m.my_reaction,
+      reaction_counts:m.reaction_counts,
+      my_reply:m.my_reply,
+      reply_enabled:m.reply_enabled,
+      active_until:m.active_until
+    })),
+    replies:lfReplies.map(r=>({
+      reply_id:r.reply_id,
+      reply_text:r.reply_text,
+      read:r.read,
+      updated_at:r.updated_at
+    }))
+  });
+
+  // Background refreshes must not rebuild the feed if nothing meaningful
+  // changed. This keeps expanded stories open and stops Home jumping.
+  if(slot.dataset.lfSignature===signature && slot.children.length){
+    lfObserve();
+    return;
+  }
+
+  const scrollY=window.scrollY;
+  const openStories=[...slot.querySelectorAll('.lfStory details[open]')]
+    .map(d=>d.closest('.lfStory')?.dataset.lfStory)
+    .filter(Boolean);
+  const olderOpen=!!slot.querySelector('.lfOlder[open]');
+
   slot.innerHTML=lfFeedCard()+lfRepliesCard();
+  slot.dataset.lfSignature=signature;
+
+  if(olderOpen){
+    const older=slot.querySelector('.lfOlder');
+    if(older)older.open=true;
+  }
+  for(const id of openStories){
+    const story=[...slot.querySelectorAll('.lfStory')]
+      .find(x=>x.dataset.lfStory===id);
+    const details=story?.querySelector('details');
+    if(details)details.open=true;
+  }
+
   lfWire();
   lfObserve();
+
+  // Preserve the exact reading position if a genuine new story/reaction
+  // requires the feed to redraw.
+  requestAnimationFrame(()=>window.scrollTo(0,scrollY));
 }
 
 function lfToast(text){
