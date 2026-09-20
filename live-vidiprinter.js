@@ -1,4 +1,4 @@
-// LIVE VIDIPRINTER V1.2
+// LIVE VIDIPRINTER V1.3
 // Persistent Match Centre story feed: goals, VAR reversals, score corrections and full time.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -43,7 +43,16 @@ function lvCss(){
       margin-top:9px;border-top:1px solid rgba(255,255,255,.08);
       padding-top:9px;font-size:9px;line-height:1.4;color:#aaa2b7
     }
-    .lvList{margin-top:8px}
+    .lvList{
+      margin-top:8px;
+      max-height:268px;
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      scrollbar-width:thin;
+      padding-right:2px
+    }
+    .lvList::-webkit-scrollbar{width:4px}
+    .lvList::-webkit-scrollbar-thumb{background:#554d61;border-radius:999px}
     .lvEvent{
       position:relative;padding:9px 0 9px 15px;
       border-top:1px solid rgba(255,255,255,.08)
@@ -161,7 +170,7 @@ function lvEventHtml(e){
 function lvMarkup(){
   const events=lvEvents||[];
   const hasChecking=events.some(e=>e.event_status==='provisional');
-  const shown=lvShowAll?events:events.slice(0,3);
+  const shown=events;
   const signature=[
     lvShowAll?'all':'latest',
     ...events.map(e=>[
@@ -181,15 +190,12 @@ function lvMarkup(){
     ${shown.length
       ?`<div class="lvList">${shown.map(lvEventHtml).join('')}</div>`
       :'<div class="lvEmpty">Waiting for the next score change. When a goal lands, the feed will show the immediate prediction-league impact here.</div>'}
-    ${events.length>3?`<button type="button" class="lvMore" data-lv-more>${lvShowAll?'Show latest 3':`View all updates (${events.length})`}</button>`:''}
+    ${events.length>3?'<div class="lvImpact2" style="text-align:right;margin-top:6px">Scroll for earlier updates</div>':''}
   </section>`;
 }
 
 function lvWirePanel(root=document){
-  root.querySelector('[data-lv-more]')?.addEventListener('click',()=>{
-    lvShowAll=!lvShowAll;
-    lvInsert();
-  },{once:true});
+  // Feed itself is scrollable; no expand/collapse button needed.
 }
 
 function lvInsert(){
