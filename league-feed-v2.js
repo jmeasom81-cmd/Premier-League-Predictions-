@@ -1,4 +1,4 @@
-// LEAGUE FEED V2.2
+// LEAGUE FEED V2.3
 // Automatic matchday/matchweek stories, reactions, owner sharing and engagement.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -90,6 +90,10 @@ function lfCss(){
     .lfShare{
       border:0;border-radius:9px;background:#e8f8ef;color:#16734d;
       padding:6px 8px;font-size:8px;font-weight:950
+    }
+    .lfCopy{
+      border:0;border-radius:9px;background:#f0edf6;color:#4f4264;
+      padding:6px 8px;font-size:8px;font-weight:950;margin-right:4px
     }
     .lfDelete{
       border:0;border-radius:9px;background:#fff0f1;color:#a93445;
@@ -270,7 +274,8 @@ function lfStory(m){
   }
 
   const ownerBtns=lfCtx?.isAdmin
-    ?((m.private?'':'<button type="button" class="lfShare" data-lf-share="'+lfEsc(m.id)+'">WhatsApp</button>')+
+    ?((m.private?'':'<button type="button" class="lfCopy" data-lf-copy-story="'+lfEsc(m.id)+'">Copy</button>'+
+      '<button type="button" class="lfShare" data-lf-share="'+lfEsc(m.id)+'">WhatsApp</button>')+
       '<button type="button" class="lfDelete" data-lf-delete="'+lfEsc(m.id)+'">Delete</button>')
     :'';
 
@@ -404,13 +409,36 @@ async function lfReact(id,reaction){
   if(document.querySelector('.engOverlay'))lfScheduleEng();
 }
 
+function lfShareText(m){
+  const link='https://jmeasom81-cmd.github.io/Premier-League-Predictions-/';
+  return m.title+'\n\n'+m.body+'\n\n📲 Open the app:\n'+link;
+}
+
+async function lfCopyStory(id){
+  if(!lfCtx?.isAdmin)return;
+  const m=lfMessages.find(x=>String(x.id)===String(id));
+  if(!m)return;
+  const text=lfShareText(m);
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch{
+    const t=document.createElement('textarea');
+    t.value=text;
+    t.style.position='fixed';
+    t.style.opacity='0';
+    document.body.appendChild(t);
+    t.select();
+    document.execCommand('copy');
+    t.remove();
+  }
+  lfToast('✓ Message copied');
+}
+
 function lfWhatsApp(id){
   if(!lfCtx?.isAdmin)return;
   const m=lfMessages.find(x=>String(x.id)===String(id));
   if(!m)return;
-  const link='https://jmeasom81-cmd.github.io/Premier-League-Predictions-/';
-  const text=m.title+'\n\n'+m.body+'\n\n📲 Open the app:\n'+link;
-  window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank','noopener');
+  window.open('https://wa.me/?text='+encodeURIComponent(lfShareText(m)),'_blank','noopener');
 }
 
 async function lfDelete(id){
@@ -455,6 +483,9 @@ function lfWire(){
   });
   document.querySelectorAll('[data-lf-react]').forEach(b=>{
     b.onclick=()=>lfReact(b.dataset.lfId,b.dataset.lfReact);
+  });
+  document.querySelectorAll('[data-lf-copy-story]').forEach(b=>{
+    b.onclick=()=>lfCopyStory(b.dataset.lfCopyStory);
   });
   document.querySelectorAll('[data-lf-share]').forEach(b=>{
     b.onclick=()=>lfWhatsApp(b.dataset.lfShare);
