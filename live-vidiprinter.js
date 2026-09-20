@@ -1,4 +1,4 @@
-// LIVE VIDIPRINTER V1.1
+// LIVE VIDIPRINTER V1.2
 // Persistent Match Centre story feed: goals, VAR reversals, score corrections and full time.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -185,10 +185,36 @@ function lvMarkup(){
   </section>`;
 }
 
+function lvWirePanel(root=document){
+  root.querySelector('[data-lv-more]')?.addEventListener('click',()=>{
+    lvShowAll=!lvShowAll;
+    lvInsert();
+  },{once:true});
+}
+
 function lvInsert(){
   const body=document.querySelector('.mc3Overlay .mc3Body');
   if(!body)return;
 
+  // Preferred path: Match Centre owns a permanent slot, so refreshing the
+  // match cards never removes the Live Feed for a browser paint.
+  const slot=body.querySelector('[data-lv-slot]');
+  if(slot){
+    const wrap=document.createElement('div');
+    wrap.innerHTML=lvMarkup();
+    const fresh=wrap.firstElementChild;
+    const old=slot.querySelector('[data-lv-panel]');
+    if(old?.dataset.lvSignature===fresh.dataset.lvSignature){
+      lvWirePanel(slot);
+      return;
+    }
+    slot.innerHTML='';
+    slot.appendChild(fresh);
+    lvWirePanel(slot);
+    return;
+  }
+
+  // Fallback for an older cached Match Centre.
   const old=body.querySelector('[data-lv-panel]');
   const wrap=document.createElement('div');
   wrap.innerHTML=lvMarkup();
@@ -202,11 +228,7 @@ function lvInsert(){
     if(provider)provider.insertAdjacentElement('afterend',fresh);
     else body.prepend(fresh);
   }
-
-  fresh.querySelector('[data-lv-more]')?.addEventListener('click',()=>{
-    lvShowAll=!lvShowAll;
-    lvInsert();
-  });
+  lvWirePanel(body);
 }
 
 async function lvRefresh(force=false){
@@ -225,19 +247,12 @@ function lvSchedule(){
 }
 
 lvCss();
+window.getPLPLiveVidiprinterHtml=()=>lvMarkup();
+window.wirePLPLiveVidiprinter=()=>lvWirePanel(document);
 
 const lvObserver=new MutationObserver(()=>{
   const overlay=document.querySelector('.mc3Overlay');
   if(!overlay)return;
-
-  // Match Centre periodically rebuilds its body. Reinsert the already-loaded
-  // feed synchronously in the observer microtask so there is no visible
-  // disappear/reappear jump between paints.
-  const body=overlay.querySelector('.mc3Body');
-  if(body && !body.querySelector('[data-lv-panel]') && lvLoadedAt){
-    lvInsert();
-  }
-
   lvSchedule();
 });
 lvObserver.observe(document.body,{childList:true,subtree:true});
