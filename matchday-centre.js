@@ -630,14 +630,23 @@ async function mc3Render(force=false,providerForce=false){
       return;
     }
 
+    const lvHtml=typeof window.getPLPLiveVidiprinterHtml==='function'
+      ?window.getPLPLiveVidiprinterHtml()
+      :'';
+
     body.innerHTML=
       mc3ProviderBar(d)+
+      '<div class="lvStableSlot" data-lv-slot>'+lvHtml+'</div>'+
       mc3Section(rows,['live','syncing'],'🔴 Live Now','Scores refresh automatically')+
       mc3Section(rows,['confirming'],'🏁 FT · Confirming','Provider says finished')+
       mc3Section(rows,['locked'],'🔒 Locked In','Predictions are sealed')+
       mc3ProjectedTable(d)+
       mc3Section(rows,['final'],'✓ Recently Final','Officially confirmed')+
       '<div class="mc3Footer">Match Centre refreshes automatically. Locked predictions come from the app database; live scores are an enhancement and cannot alter saved predictions or official results.</div>';
+
+    if(typeof window.wirePLPLiveVidiprinter==='function'){
+      window.wirePLPLiveVidiprinter();
+    }
 
     const refresh=body.querySelector('[data-mc3-refresh]');
     if(refresh)refresh.onclick=async()=>{
