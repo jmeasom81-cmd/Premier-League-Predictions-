@@ -209,6 +209,55 @@ function sfFindStrongestCall(p){
   return vals[0]||null;
 }
 
+function sfUkDay(v){
+  if(!v)return '';
+  try{
+    return new Intl.DateTimeFormat('en-CA',{
+      timeZone:'Europe/London',
+      year:'numeric',month:'2-digit',day:'2-digit'
+    }).format(new Date(v));
+  }catch{return ''}
+}
+
+function sfDroughtStats(evidence){
+  const picks=[...(evidence?.all_fixtures||[])]
+    .filter(x=>x.has_prediction!==false&&x.kickoff_at)
+    .sort((a,b)=>new Date(a.kickoff_at)-new Date(b.kickoff_at));
+
+  let run0=0,longest0=0;
+  for(const x of picks){
+    if(sfNum(x.points)===0){
+      run0++;
+      longest0=Math.max(longest0,run0);
+    }else{
+      run0=0;
+    }
+  }
+
+  const days=new Map();
+  for(const x of picks){
+    const day=sfUkDay(x.kickoff_at);
+    if(!day)continue;
+    if(!days.has(day))days.set(day,{day,hasExact:false});
+    if(sfNum(x.points)===3||x.is_exact===true)days.get(day).hasExact=true;
+  }
+
+  let runDays=0,longestDays=0;
+  for(const d of [...days.values()].sort((a,b)=>a.day.localeCompare(b.day))){
+    if(!d.hasExact){
+      runDays++;
+      longestDays=Math.max(longestDays,runDays);
+    }else{
+      runDays=0;
+    }
+  }
+
+  return {
+    longest_scoreless_games:longest0,
+    longest_no_exact_days:longestDays
+  };
+}
+
 function sfSelfHtml(p,e){
   const mws=p.matchweeks||[];
   const closed=sfNum(sfProfiles?.closed_matchweeks);
@@ -224,6 +273,7 @@ function sfSelfHtml(p,e){
   const vs=Math.round(Number(p.points_vs_league_average||0));
   const exactVs=Math.round(Number(p.exacts_vs_league_average||0));
   const high=sfNum(p.highest_position),low=sfNum(p.lowest_position);
+  const drought=sfDroughtStats(e);
 
   const formPills=recentForPills.length?recentForPills.map(x=>`<div class="sfPick ${sfNum(x.points)===3?'exact':sfNum(x.points)===1?'one':''}">${sfNum(x.points)}<small>${sfNum(x.points)===3?'EXACT':sfNum(x.points)===1?'1 PT':'0'}</small></div>`).join(''):'<div class="sfEmpty">Your form line will build as fixtures finish.</div>';
 
@@ -294,6 +344,8 @@ function sfSelfHtml(p,e){
         <div class="sfRow"><span><b>Lowest league position</b><small>Lowest point reached this season</small></span><span class="sfValue">${sfOrd(low)}</span></div>
         <div class="sfRow"><span><b>Best scoring streak</b><small>Consecutive fixtures earning points</small></span><span class="sfValue">${p.longest_scoring_streak??0}</span></div>
         <div class="sfRow"><span><b>Best exact streak</b><small>Consecutive exact scorelines</small></span><span class="sfValue">${p.longest_exact_streak??0}</span></div>
+        <div class="sfRow"><span><b>Longest run without a point</b><small>Consecutive submitted predictions earning 0 points</small></span><span class="sfValue">${drought.longest_scoreless_games} games</span></div>
+        <div class="sfRow"><span><b>Longest run without an exact</b><small>Consecutive fixture days with a prediction but no 3-pointer</small></span><span class="sfValue">${drought.longest_no_exact_days} days</span></div>
         <div class="sfRow"><span><b>Missed predictions</b><small>Completed fixtures without a sealed pick</small></span><span class="sfValue">${p.missed??0}</span></div>
       </div>
     </div>`;
@@ -315,6 +367,7 @@ function sfPredictionLeaders(players){
 function sfLeagueAggregates(evidenceRows){
   const clubs=new Map();
   const fixtures=new Map();
+  const droughts=[];
 
   function club(name){
     if(!clubs.has(name))clubs.set(name,{club:name,points:0,picks:0,scoring:0,exacts:0});
@@ -322,6 +375,12 @@ function sfLeagueAggregates(evidenceRows){
   }
 
   for(const pack of evidenceRows||[]){
+    const drought=sfDroughtStats(pack?.evidence||{});
+    droughts.push({
+      ...(pack?.player||{}),
+      longest_scoreless_games:drought.longest_scoreless_games,
+      longest_no_exact_days:drought.longest_no_exact_days
+    });
     for(const x of pack?.evidence?.all_fixtures||[]){
       if(x.has_prediction===false)continue;
       const pts=sfNum(x.points);
@@ -343,6 +402,13 @@ function sfLeagueAggregates(evidenceRows){
     return {...f,home_pct:hp,draw_pct:dp,away_pct:ap,splitGap};
   });
 
+  const maxZero=Math.max(0,...droughts.map(x=>sfNum(x.longest_scoreless_games)));
+  const maxNoExact=Math.max(0,...droughts.map(x=>sfNum(x.longest_no_exact_days)));
+  const zeroHolders=droughts.filter(x=>sfNum(x.longest_scoreless_games)===maxZero&&maxZero>0);
+  const noExactHolders=droughts.filter(x=>sfNum(x.longest_no_exact_days)===maxNoExact&&maxNoExact>0);
+  const longestScoreless=zeroHolders[0]?{...zeroHolders[0],tied_count:zeroHolders.length}:null;
+  const longestNoExact=noExactHolders[0]?{...noExactHolders[0],tied_count:noExactHolders.length}:null;
+
   return {
     clubs:clubRows,
     fixtures:fixtureRows,
@@ -350,7 +416,9 @@ function sfLeagueAggregates(evidenceRows){
     leastRewarding:[...clubRows].filter(x=>x.picks>0).sort((a,b)=>a.points-b.points||a.avg-b.avg)[0]||null,
     exactMagnet:[...clubRows].sort((a,b)=>b.exacts-a.exacts||b.points-a.points)[0]||null,
     mostExactsFixture:[...fixtureRows].sort((a,b)=>b.exacts-a.exacts||b.scoring-a.scoring)[0]||null,
-    mostDivided:[...fixtureRows].sort((a,b)=>a.splitGap-b.splitGap)[0]||null
+    mostDivided:[...fixtureRows].sort((a,b)=>a.splitGap-b.splitGap)[0]||null,
+    longestScoreless,
+    longestNoExact
   };
 }
 
@@ -455,6 +523,16 @@ function sfLeagueHtml(agg=null){
       ${rec.most_exacts_in_matchweek?sfRank(rec.most_exacts_in_matchweek,`${rec.most_exacts_in_matchweek.exacts} exacts`,`Most exacts in a MW · MW${rec.most_exacts_in_matchweek.matchweek}`):''}
       ${rec.longest_scoring_streak?sfRank(rec.longest_scoring_streak,rec.longest_scoring_streak.longest_scoring_streak??0,'Longest scoring streak'):''}
       ${rec.longest_exact_streak?sfRank(rec.longest_exact_streak,rec.longest_exact_streak.longest_exact_streak??0,'Longest exact streak'):''}
+      ${agg?.longestScoreless?sfRank(
+        agg.longestScoreless,
+        `${agg.longestScoreless.longest_scoreless_games} games${sfNum(agg.longestScoreless.tied_count)>1?` · ${agg.longestScoreless.tied_count} tied`:''}`,
+        'Longest run without a point'
+      ):''}
+      ${agg?.longestNoExact?sfRank(
+        agg.longestNoExact,
+        `${agg.longestNoExact.longest_no_exact_days} days${sfNum(agg.longestNoExact.tied_count)>1?` · ${agg.longestNoExact.tied_count} tied`:''}`,
+        'Longest exact drought · fixture days'
+      ):''}
     </div>
 
     ${sfDrama?sfDramaSummary(sfDrama):''}
