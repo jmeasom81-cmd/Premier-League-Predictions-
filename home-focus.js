@@ -1,4 +1,4 @@
-// HOME FOCUS V1
+// HOME FOCUS V1.1
 // Personal football dashboard for Home.
 // Replaces the old Home prediction-heavy layout while leaving Predict, Table, Stats and Live Centre untouched.
 
@@ -378,6 +378,7 @@ function hfLastRoundHtml(d){
 function hfHtml(d){
   return `${hfHeroHtml(d)}
     ${hfPredictionHtml(d)}
+    <div class="hfLeagueFeedSlot"></div>
     <div class="hfLiveSlot"></div>
     ${hfPulseHtml(d)}
     ${hfLastRoundHtml(d)}`;
@@ -455,7 +456,7 @@ async function hfApply(force=false){
       }
     });
 
-    if(force || host.dataset.hfSignature!==signature || !host.innerHTML){
+    if(host.dataset.hfSignature!==signature || !host.innerHTML){
       host.innerHTML=hfHtml(d);
       host.dataset.hfSignature=signature;
       hfWire(host);
