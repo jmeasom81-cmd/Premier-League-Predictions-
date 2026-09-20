@@ -1,4 +1,4 @@
-// LEAGUE FEED V2.1
+// LEAGUE FEED V2.2
 // Automatic matchday/matchweek stories, reactions, owner sharing and engagement.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -32,6 +32,12 @@ function lfCss(){
   s.textContent=`
     .hfLeagueFeedSlot{
       min-width:0;max-width:100%;overflow-x:hidden
+    }
+    /* The app uses a fixed bottom nav. Leave enough real scroll space below
+       Home so an expanded League Feed story can clear that nav completely. */
+    .hfHost{
+      padding-bottom:calc(118px + env(safe-area-inset-bottom))!important;
+      box-sizing:border-box
     }
     .hfLeagueFeedSlot:empty{display:none}
     .lfCard{
