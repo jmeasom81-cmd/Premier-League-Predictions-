@@ -19,6 +19,7 @@ let mc3FetchedAt=0;
 let mc3FetchPromise=null;
 let mc3PreviousActive=null;
 let mc3Timer=null;
+let mc3LastRenderSignature=null;
 
 const mc3Esc=v=>String(v??'').replace(/[&<>"']/g,c=>({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -417,6 +418,69 @@ function mc3People(row){
   return ps;
 }
 
+function mc3RowKey(row){
+  return String(row?.appFixture?.fixture_id||row?.external_fixture_id||mc3FixtureKey(row?.home_team,row?.away_team));
+}
+
+function mc3MeaningfulSignature(d){
+  const rows=(d?.rows||[]).map(r=>[
+    mc3RowKey(r),
+    r.phase,
+    r.home_score??'',
+    r.away_score??'',
+    r.appFixture?.result_home_score??'',
+    r.appFixture?.result_away_score??'',
+    (r.appFixture?.predictions||[]).length
+  ].join(':')).join('|');
+
+  const table=(d?.standings||[]).map(x=>[
+    x.entrant_id,
+    x.total_points,
+    x.exact_scores,
+    x.correct_outcomes
+  ].join(':')).join('|');
+
+  return rows+'||'+table;
+}
+
+function mc3UpdateLiveLabels(d){
+  const body=document.querySelector('.mc3Overlay .mc3Body');
+  if(!body)return;
+
+  const cards=[...body.querySelectorAll('.mc3Game[data-mc3-key]')];
+  const byKey=new Map(cards.map(card=>[card.dataset.mc3Key,card]));
+
+  for(const row of d?.rows||[]){
+    const card=byKey.get(mc3RowKey(row));
+    if(!card)continue;
+    const pill=card.querySelector('.mc3Pill');
+    if(pill){
+      const status=mc3Status(row);
+      pill.textContent=status.label;
+      pill.className='mc3Pill '+status.cls;
+    }
+  }
+
+  const f=d?.feed||{};
+  const liveOk=f.ok===true;
+  const fresh=body.querySelector('.mc3Fresh');
+  if(fresh){
+    fresh.classList.toggle('ok',liveOk);
+    fresh.classList.toggle('fallback',!liveOk);
+    const b=fresh.querySelector('b');
+    const span=fresh.querySelector('span');
+    const src=f.source_label||(liveOk?'Live score provider':'Prediction history');
+    let stamp='just now';
+    const ts=f.source_updated_at||f.fetched_at||d?.fetched_at;
+    if(ts){
+      const x=mc3SafeDate(ts,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      if(x!=='—')stamp=x;
+    }
+    if(b)b.textContent=(liveOk?'⚡ ':'↻ ')+src;
+    if(span)span.textContent=(liveOk?'Live scores connected':'Locked picks available · live score provider will keep retrying')+' · updated '+stamp;
+  }
+}
+
 function mc3Game(row){
   try{
     const h=row.appFixture||{};
@@ -441,7 +505,7 @@ function mc3Game(row){
         ?`<div class="mc3Score">${mc3Esc(row.home_score)}–${mc3Esc(row.away_score)}</div><div class="mc3ScoreSub">${row.phase==='final'?'Final score':row.phase==='confirming'?'Awaiting confirmation':'Current score'}</div>`
         :`<div class="mc3Kickoff">—</div><div class="mc3ScoreSub">Score syncing</div>`;
 
-    return `<section class="mc3Game">
+    return `<section class="mc3Game" data-mc3-key="${mc3Esc(mc3RowKey(row))}">
       <div class="mc3GameTop">
         <div class="mc3Meta">MW${mc3Esc(row.matchweek||h.matchweek||'')} · ${mc3Esc(mc3FmtDay(row.kickoff_at))}</div>
         <div class="mc3Pill ${status.cls}">${mc3Esc(status.label)}</div>
@@ -615,6 +679,21 @@ async function mc3Render(force=false,providerForce=false){
     const d=await mc3Fetch(force,providerForce);
     if(!d)throw new Error('No active league found');
 
+    const renderSignature=mc3MeaningfulSignature(d);
+
+    // Background polling should not rebuild the whole Match Centre when only
+    // the provider timestamp/minute has changed. That full DOM replacement was
+    // causing the visible page jump every ~15 seconds.
+    if(!force && mc3LastRenderSignature===renderSignature && body.querySelector('.mc3Game')){
+      mc3UpdateLiveLabels(d);
+      return;
+    }
+
+    const oldScrollTop=ov.scrollTop;
+    const openDetailKeys=[...body.querySelectorAll('.mc3Game[data-mc3-key] details[open]')]
+      .map(x=>x.closest('.mc3Game')?.dataset.mc3Key)
+      .filter(Boolean);
+
     const rows=d.rows||[];
     const hs=mc3Header(rows);
     const head=ov.querySelector('.mc3Head');
@@ -643,6 +722,19 @@ async function mc3Render(force=false,providerForce=false){
       mc3ProjectedTable(d)+
       mc3Section(rows,['final'],'✓ Recently Final','Officially confirmed')+
       '<div class="mc3Footer">Match Centre refreshes automatically. Locked predictions come from the app database; live scores are an enhancement and cannot alter saved predictions or official results.</div>';
+
+    mc3LastRenderSignature=renderSignature;
+
+    // Preserve the user's exact reading position and any expanded league-detail
+    // rows when a meaningful score/phase change really does require a redraw.
+    for(const key of openDetailKeys){
+      const card=[...body.querySelectorAll('.mc3Game[data-mc3-key]')]
+        .find(x=>x.dataset.mc3Key===key);
+      const details=card?.querySelector('details');
+      if(details)details.open=true;
+    }
+    ov.scrollTop=oldScrollTop;
+    requestAnimationFrame(()=>{ if(document.contains(ov)) ov.scrollTop=oldScrollTop; });
 
     if(typeof window.wirePLPLiveVidiprinter==='function'){
       window.wirePLPLiveVidiprinter();
@@ -686,6 +778,7 @@ async function mc3Render(force=false,providerForce=false){
 
 async function mc3Open(){
   mc3Css();
+  mc3LastRenderSignature=null;
 
   // Remove both legacy and V3 overlays so only one centre can exist.
   document.querySelector('.mcOverlay')?.remove();
