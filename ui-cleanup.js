@@ -228,9 +228,8 @@
         <div class="ucGroup">
           <div class="ucGroupTitle">Communications</div>
           <div class="ucToolGrid">
+            ${tool('generator','✨ Message generator','Matchday · matchweek · form','comm')}
             ${tool('reminder','📲 Outstanding picks','Create reminder message','comm')}
-            ${tool('daily','📣 Daily recap','Today’s league roundup','comm')}
-            ${tool('review','📰 Matchweek review','Weekly winners & movers','comm')}
           </div>
         </div>
 
@@ -260,9 +259,8 @@
     }
 
     const direct={
+      generator:()=>window.openPLPMessageGenerator?.(),
       reminder:()=>clickOriginal('.waAdminCard [data-wa-open]'),
-      daily:()=>clickOriginal('.drAdminCard [data-dr-open]'),
-      review:()=>clickOriginal('.wrAdminCard [data-wr-open]'),
       engagement:()=>clickOriginal('.engAdminCard [data-eng-open]'),
       changes:()=>clickOriginal('.pcAdminCard [data-pc-open]')
     };
