@@ -1,4 +1,4 @@
-// LEAGUE FEED V2
+// LEAGUE FEED V2.1
 // Automatic matchday/matchweek stories, reactions, owner sharing and engagement.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -30,6 +30,9 @@ function lfCss(){
   const s=document.createElement('style');
   s.id='lf-v1-css';
   s.textContent=`
+    .hfLeagueFeedSlot{
+      min-width:0;max-width:100%;overflow-x:hidden
+    }
     .hfLeagueFeedSlot:empty{display:none}
     .lfCard{
       border:1px solid #ded7ee!important;
@@ -38,7 +41,11 @@ function lfCss(){
     .lfHead{display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-bottom:5px}
     .lfHead h3{margin:0;color:#241153;font-size:15px}
     .lfHead span{font-size:8px;color:#8a8493;text-align:right}
-    .lfStory{border:1px solid #e9e4f0;border-radius:14px;padding:10px;margin-top:8px;background:#fff}
+    .lfStory{
+      border:1px solid #e9e4f0;border-radius:14px;
+      padding:11px 13px;margin-top:8px;background:#fff;
+      min-width:0;max-width:100%;box-sizing:border-box;overflow:hidden
+    }
     .lfStory.private{border-color:#d8c8f2;background:linear-gradient(135deg,#f8f4ff,#fff)}
     .lfTop{display:flex;justify-content:space-between;gap:8px;align-items:center}
     .lfTag{
@@ -48,8 +55,15 @@ function lfCss(){
     }
     .lfStory.private .lfTag{background:#eee8fa;color:#5d399a}
     .lfDate{font-size:7.5px;color:#938d9b;white-space:nowrap}
-    .lfTitle{font-size:11.5px;font-weight:950;color:#2f2247;margin-top:6px;line-height:1.3}
-    .lfBody{white-space:pre-wrap;font-size:9px;line-height:1.46;color:#5c5664;margin-top:5px}
+    .lfTitle{
+      font-size:11.5px;font-weight:950;color:#2f2247;margin-top:6px;line-height:1.3;
+      min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:normal
+    }
+    .lfBody{
+      white-space:pre-wrap;font-size:9px;line-height:1.5;color:#5c5664;margin-top:5px;
+      min-width:0;max-width:100%;box-sizing:border-box;
+      overflow-wrap:anywhere;word-break:normal
+    }
     .lfPreview>.lfBody{
       display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden
     }
@@ -58,7 +72,7 @@ function lfCss(){
     .lfPreview details .lfBody{margin-top:6px}
     .lfActions{
       display:flex;justify-content:space-between;align-items:center;
-      gap:7px;flex-wrap:wrap;margin-top:8px
+      gap:7px;flex-wrap:wrap;margin-top:8px;min-width:0;max-width:100%
     }
     .lfReactions{display:flex;gap:4px;flex-wrap:wrap}
     .lfReact{
