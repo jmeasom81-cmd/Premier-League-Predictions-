@@ -1,4 +1,4 @@
-// OWNER MESSAGE GENERATOR V1
+// OWNER MESSAGE GENERATOR V1.1
 // Flexible owner-only WhatsApp/Home message generator using real league data.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -64,6 +64,12 @@ function mgCss(){
       display:flex;align-items:center;gap:7px;font-size:8.5px;font-weight:850;color:#50495a
     }
     .mgToggle input{accent-color:#5b34a4}
+    .mgPrompt{
+      width:100%;min-height:92px;border:1px solid #dcd7e6;border-radius:12px;
+      padding:10px;background:#fff;color:#292431;font-family:inherit;
+      font-size:10px;line-height:1.45;resize:vertical
+    }
+    .mgHint{font-size:7.8px;color:#87818f;line-height:1.45;margin-top:5px}
     .mgGenerate{
       width:100%;border:0;border-radius:12px;padding:11px;background:#5b34a4;color:#fff;
       font-size:10px;font-weight:950;margin-top:10px
@@ -149,7 +155,15 @@ function mgHistoryPredictions(row){
 
 function mgHistoryScope(history,scope,base){
   const completed=mgArr(history).filter(x=>x.result_home_score!=null&&x.result_away_score!=null);
-  if(scope==='last6')return completed.slice(0,6);
+  if(scope==='last6'){
+    const latestCompleted=Number(base?.matchweek||0);
+    const weeks=[...new Set(
+      completed
+        .map(x=>Number(x.matchweek||0))
+        .filter(mw=>mw>0&&(!latestCompleted||mw<=latestCompleted))
+    )].sort((a,b)=>b-a).slice(0,6);
+    return completed.filter(x=>weeks.includes(Number(x.matchweek||0)));
+  }
   if(scope==='matchweek'){
     const mw=Number(base?.matchweek||0);
     return completed.filter(x=>Number(x.matchweek)===mw);
@@ -206,7 +220,7 @@ function mgFixtureExactParty(rows){
 async function mgLoad(scope,day=null){
   const c=await mgContext();
   const common=[
-    mgSb.rpc('get_active_match_centre_history',{p_league_id:c.leagueId}),
+    mgSb.rpc('get_league_history',{p_league_id:c.leagueId,p_limit:200}),
     mgSb.rpc('get_match_centre_context',{p_league_id:c.leagueId})
   ];
   if(scope==='matchday'){
@@ -214,7 +228,8 @@ async function mgLoad(scope,day=null){
   }else if(scope==='matchweek'){
     common.unshift(mgSb.rpc('get_owner_weekly_review',{p_league_id:c.leagueId}));
   }else{
-    common.unshift(Promise.resolve({data:{scope:'last6'},error:null}));
+    // Weekly review tells us the latest fully completed matchweek.
+    common.unshift(mgSb.rpc('get_owner_weekly_review',{p_league_id:c.leagueId}));
   }
 
   const results=await Promise.all(common);
@@ -233,13 +248,15 @@ async function mgLoad(scope,day=null){
   const near=mgNearMisses(scoped);
   const form=mgRecentForm(scoped);
   const exactParty=mgFixtureExactParty(scoped);
-  return {scope,base,history,context,scoped,near,form,exactParty,changes};
+  const sampleMatchweeks=[...new Set(scoped.map(x=>Number(x.matchweek||0)).filter(Boolean))].sort((a,b)=>a-b);
+  return {scope,base,history,context,scoped,near,form,exactParty,changes,sampleMatchweeks};
 }
 
 function mgScopeTitle(d){
   if(d.scope==='matchday')return 'Matchday · '+mgDateLabel(d.base.selected_date);
   if(d.scope==='matchweek')return 'Matchweek '+Number(d.base.matchweek||0);
-  return 'Last 6 completed matches';
+  const n=d.sampleMatchweeks?.length||0;
+  return `Last ${n||6} completed matchweek${n===1?'':'s'}`;
 }
 
 function mgTopPerformers(d){
@@ -294,21 +311,48 @@ function mgSettings(){
     mood:active('mood')||'balanced',
     emoji:active('emoji')||'light',
     focuses:focuses.length?focuses:['auto'],
+    prompt:o.querySelector('[data-mg-prompt]')?.value?.trim()||'',
     table:!!o.querySelector('[data-mg-extra="table"]')?.checked,
     random:!!o.querySelector('[data-mg-extra="random"]')?.checked,
     link:!!o.querySelector('[data-mg-extra="link"]')?.checked
   };
 }
 
+function mgPromptFlags(prompt=''){
+  const q=String(prompt||'').toLowerCase();
+  return {
+    international:/international break|no matches for|no games for|fixture break|break coming/.test(q),
+    blanks:/fired? blanks|blanked|blanking|zero points|no points/.test(q),
+    movers:/biggest mover|big mover|climber|climbed|riser|rising/.test(q),
+    falls:/dropping like flies|biggest fall|falling|dropping|sliding|plummet/.test(q),
+    unlucky:/unlucky|near miss|near-miss|nearly|almost/.test(q),
+    exacts:/exact|three pointer|3 pointer/.test(q),
+    form:/form|last six|last 6|hot streak|cold streak/.test(q),
+    table:/table|leader|top three|top 3|title race/.test(q),
+    changes:/prediction change|changed pick|tinker|second thought/.test(q)
+  };
+}
+
 function mgChooseFocus(s,d){
-  if(!s.focuses.includes('auto'))return s.focuses;
-  const out=['performers','exacts'];
-  const mv=mgMovers(d);
-  if(mv.up.length)out.push('movers');
-  if(d.near.total)out.push('unlucky');
-  if(d.scope==='last6')out.push('form');
-  if(s.length!=='short')out.push('table');
-  return out;
+  const manual=!s.focuses.includes('auto');
+  const out=manual?[...s.focuses]:['performers','exacts'];
+  if(!manual){
+    const mv=mgMovers(d);
+    if(mv.up.length)out.push('movers');
+    if(d.near.total)out.push('unlucky');
+    if(d.scope==='last6')out.push('form');
+    if(s.length!=='short')out.push('table');
+  }
+
+  const f=mgPromptFlags(s.prompt);
+  if(f.movers||f.falls)out.push('movers');
+  if(f.unlucky)out.push('unlucky');
+  if(f.exacts)out.push('exacts');
+  if(f.form)out.push('form');
+  if(f.table)out.push('table');
+  if(f.changes)out.push('changes');
+
+  return [...new Set(out)];
 }
 
 function mgLinePeople(rows,limit=3,metric='points'){
@@ -398,7 +442,10 @@ function mgUnluckySection(s,d){
 function mgFormSection(s,d){
   if(!d.form.length)return '';
   const top=d.form.slice(0,s.length==='short'?2:4);
-  const title=s.tone==='serious'?'Current form — last 6 matches':'🔥 Current form — last 6';
+  const weeks=d.sampleMatchweeks?.length||0;
+  const title=s.tone==='serious'
+    ?`Current form — last ${weeks||6} matchweeks`
+    :`🔥 Current form — last ${weeks||6} matchweeks`;
   let body=mgLinePeople(top,top.length);
   if(s.length==='long'){
     const cold=[...d.form].filter(x=>x.submitted>0).sort((a,b)=>a.points-b.points||a.exacts-b.exacts).slice(0,2);
@@ -425,6 +472,71 @@ function mgChangeSection(s,d){
   return (s.tone==='serious'?'Prediction changes':'🧠 Second thoughts')+'\n'+lines.join('\n');
 }
 
+function mgPromptSection(s,d){
+  const raw=String(s.prompt||'').trim();
+  if(!raw)return '';
+  const f=mgPromptFlags(raw);
+  const lines=[];
+
+  if(f.international){
+    const opts=s.tone==='banter'
+      ?[
+        '🌍 And that is us parked for the international break — no Premier League points to win for a little while, so the bragging rights get an extended shelf life.',
+        '🌍 International break time. The league table can stop moving for five minutes and everyone can pretend their next predictions will be more sensible.',
+        '🌍 No league fixtures for a while thanks to the international break — plenty of time to study the form. Or wildly overthink it.'
+      ]
+      :[
+        'The Premier League now pauses for the international break, so there will be no new league scoring for a while.',
+        'An international break follows this round, giving the league a short pause before the next set of predictions.'
+      ];
+    lines.push(mgPick(opts,11));
+  }
+
+  if(f.blanks){
+    const zero=[...d.form].filter(x=>mgNum(x.submitted)>0&&mgNum(x.points)===0);
+    if(zero.length){
+      const names=zero.slice(0,s.length==='long'?5:3).map(mgName);
+      lines.push(`${s.tone==='banter'?'🥚 Fired blanks':'Scoreless'}: ${names.join(', ')} ${names.length===1?'finished':'finished'} the selected period without a point.`);
+    }else if(s.tone==='banter'){
+      lines.push('Nobody completely fired blanks in this sample — everyone managed to scrape something together.');
+    }
+  }
+
+  if(f.movers){
+    const up=mgMovers(d).up[0];
+    if(up)lines.push(`${s.tone==='banter'?'🚀 Biggest mover':'Biggest mover'}: ${mgName(up)} climbed ${mgNum(up.places)} place${mgNum(up.places)===1?'':'s'} (${mgOrd(up.from)} → ${mgOrd(up.to)}).`);
+  }
+
+  if(f.falls){
+    const falls=mgMovers(d).down.slice(0,s.length==='long'?3:2);
+    if(falls.length){
+      const desc=falls.map(x=>`${mgName(x)} -${mgNum(x.places)}`).join(', ');
+      lines.push(`${s.tone==='banter'?'🪂 Dropping like flies':'Biggest drops'}: ${desc}.`);
+    }
+  }
+
+  if(f.unlucky&&d.near.players.length){
+    const x=d.near.players[0];
+    lines.push(`${s.tone==='banter'?'😬 Cruel one':'Near-miss watch'}: ${mgName(x)} had ${mgNum(x.count)} prediction${mgNum(x.count)===1?'':'s'} finish one goal away from exact.`);
+  }
+
+  // For an instruction we don't explicitly recognise, keep the owner's angle visible
+  // without pretending a language model interpreted more than it did.
+  if(!lines.length){
+    const cleaned=raw
+      .replace(/^(please\s+)?(reference|mention|talk about|include)\s+/i,'')
+      .replace(/\s+/g,' ')
+      .slice(0,180);
+    if(cleaned){
+      lines.push(s.tone==='serious'
+        ?`Additional talking point: ${cleaned}.`
+        :`One more angle for the group: ${cleaned.replace(/[.!?]+$/,'')}.`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 function mgRandomStat(s,d){
   const stats=[];
   const e=mgExacts(d);
@@ -433,6 +545,9 @@ function mgRandomStat(s,d){
   if(avg>=0)stats.push(`The average return was ${avg} points per player.`);
   if(d.near.total)stats.push(`There were ${d.near.total} one-goal-from-exact predictions — plenty of almosts.`);
   if(d.exactParty?.exacts)stats.push(`${d.exactParty.home_team} v ${d.exactParty.away_team} produced ${d.exactParty.exacts} exact predictions.`);
+  if(d.scope==='last6'&&d.sampleMatchweeks?.length){
+    stats.push(`This form sample covers ${d.sampleMatchweeks.length} completed matchweek${d.sampleMatchweeks.length===1?'':'s'}: MW${d.sampleMatchweeks.join(', MW')}.`);
+  }
   const zero=d.form.filter(x=>mgNum(x.points)===0&&mgNum(x.submitted)>0).length;
   if(zero)stats.push(`${zero} player${zero===1?'':'s'} scored zero across this sample.`);
   if(!stats.length)return '';
@@ -444,6 +559,7 @@ function mgBuild(s,d){
   const focus=mgChooseFocus(s,d);
   const sections=[];
   sections.push(mgIntro(s,d));
+  if(s.prompt)sections.push(mgPromptSection(s,d));
 
   if(focus.includes('performers'))sections.push(mgPerformersSection(s,d));
   if(focus.includes('movers'))sections.push(mgMoverSection(s,d));
@@ -484,7 +600,8 @@ function mgBuild(s,d){
 function mgTitleFor(d){
   if(d.scope==='matchday')return `${mgDateLabel(d.base.selected_date)} · League update`;
   if(d.scope==='matchweek')return `Matchweek ${Number(d.base.matchweek||0)} · League update`;
-  return 'Current form · Last 6 games';
+  const n=d.sampleMatchweeks?.length||0;
+  return `Current form · Last ${n||6} matchweek${n===1?'':'s'}`;
 }
 
 function mgFactsHtml(d){
@@ -629,7 +746,7 @@ async function mgOpen(){
         <div class="mgChoices">
           <button class="mgChoice active" data-mg-scope="matchday">Match day</button>
           <button class="mgChoice" data-mg-scope="matchweek">Match week</button>
-          <button class="mgChoice" data-mg-scope="last6">Last 6 games · form</button>
+          <button class="mgChoice" data-mg-scope="last6">Last 6 game weeks · form</button>
         </div>
         <div class="mgDayWrap"><div class="mgLabel">Result day</div><select class="mgSelect" data-mg-day><option>Loading…</option></select></div>
       </div>
@@ -689,6 +806,12 @@ async function mgOpen(){
           <label class="mgToggle"><input type="checkbox" data-mg-extra="link" checked> Add app link</label>
         </div>
 
+      </div>
+
+      <div class="mgPanel">
+        <div class="mgPanelHead"><h2>4 · Give it a steer</h2><span>Optional talking points</span></div>
+        <textarea class="mgPrompt" data-mg-prompt placeholder="Type an instruction or just buzz words…&#10;&#10;Examples:&#10;Reference the international break so no matches for a while&#10;Fired blanks, biggest mover, dropping like flies"></textarea>
+        <div class="mgHint">The generator will use recognised ideas to choose the right league facts and weave them into the selected tone. You can use a sentence or just a few phrases.</div>
         <button class="mgGenerate" data-mg-generate>✨ Generate message</button>
       </div>
 
