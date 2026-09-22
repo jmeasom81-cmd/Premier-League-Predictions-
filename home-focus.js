@@ -1,4 +1,4 @@
-// HOME FOCUS V1.2
+// HOME FOCUS V1.3
 // Personal football dashboard for Home.
 // Replaces the old Home prediction-heavy layout while leaving Predict, Table, Stats and Live Centre untouched.
 
@@ -401,8 +401,8 @@ function hfLastRoundHtml(d){
 
 function hfHtml(d){
   return `${hfHeroHtml(d)}
-    ${hfPredictionHtml(d)}
     ${hfWhatsAppHtml()}
+    ${hfPredictionHtml(d)}
     <div class="hfLeagueFeedSlot"></div>
     <div class="hfLiveSlot"></div>
     ${hfPulseHtml(d)}
