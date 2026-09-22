@@ -1,4 +1,4 @@
-// HOME FOCUS V1.1
+// HOME FOCUS V1.2
 // Personal football dashboard for Home.
 // Replaces the old Home prediction-heavy layout while leaving Predict, Table, Stats and Live Centre untouched.
 
@@ -164,6 +164,22 @@ function hfCss(){
       padding:8px 9px;font-size:9px;font-weight:950;white-space:nowrap
     }
 
+    .hfWhatsApp{
+      display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
+      background:linear-gradient(135deg,#effdf5,#ffffff);
+      border-color:#ccefdc
+    }
+    .hfWhatsAppIcon{
+      width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:19px;
+      background:#dcf8e8;color:#08775c
+    }
+    .hfWhatsAppText b{font-size:11.5px;color:#174b37;display:block}
+    .hfWhatsAppText small{font-size:8.5px;color:#657a70;line-height:1.35;display:block;margin-top:2px}
+    .hfWhatsAppBtn{
+      display:inline-block;border-radius:10px;background:#168c5e;color:#fff;text-decoration:none;
+      padding:8px 10px;font-size:9px;font-weight:950;white-space:nowrap
+    }
+
     .hfLiveSlot:empty{display:none}
     .hfLiveSlot .plpLiveHome{margin-bottom:12px!important}
 
@@ -275,6 +291,14 @@ function hfPredictionHtml(d){
   </div>`;
 }
 
+function hfWhatsAppHtml(){
+  return `<div class="hfCard hfWhatsApp">
+    <div class="hfWhatsAppIcon">💬</div>
+    <div class="hfWhatsAppText"><b>League WhatsApp group</b><small>Chat with everyone in the league.</small></div>
+    <a class="hfWhatsAppBtn" href="https://chat.whatsapp.com/Bf9TNNX2D4iGlMPUTMgwvk" target="_blank" rel="noopener noreferrer">Open group</a>
+  </div>`;
+}
+
 function hfHeroHtml(d){
   const p=d?.profile||{}, me=d?.me||{};
   const fav=p.favourite_club;
@@ -378,6 +402,7 @@ function hfLastRoundHtml(d){
 function hfHtml(d){
   return `${hfHeroHtml(d)}
     ${hfPredictionHtml(d)}
+    ${hfWhatsAppHtml()}
     <div class="hfLeagueFeedSlot"></div>
     <div class="hfLiveSlot"></div>
     ${hfPulseHtml(d)}
