@@ -1,4 +1,4 @@
-// PREDICTION COACH V2
+// PREDICTION COACH V2.1
 // Stable isolated coach panel: never replaces the native Predict page.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -298,32 +298,9 @@ function pcEnsurePredictUi(){
     main.prepend(tabs);
   }
 
-  if(!pcData){
-    pcLoad(false).then(()=>{
-      pcEnsurePredictUi();
-    }).catch(e=>console.warn('Prediction Coach:',e));
-    return;
-  }
-
-  const next=pcTeaserText(pcData);
-  let teaser=main.querySelector('.pcTeaser');
-
-  if(!teaser){
-    teaser=document.createElement('div');
-    teaser.className='pcTeaser';
-    tabs.insertAdjacentElement('afterend',teaser);
-  }
-
-  if(pcLastTeaser!==next || !teaser.innerHTML){
-    pcLastTeaser=next;
-    teaser.innerHTML=`<div class="pcTeaserTop">
-      <div>
-        <div class="pcTeaserTitle">🧠 Coach says</div>
-        <div class="pcTeaserText">${pcEsc(next)}</div>
-      </div>
-      <button type="button" class="pcTeaserBtn" data-pc-action="coach">View coach →</button>
-    </div>`;
-  }
+  // Keep one clear entry point to Prediction Coach: the top Predictions / Prediction Coach switch.
+  // Remove the older teaser card so the coach is not duplicated on the Predictions screen.
+  main.querySelector('.pcTeaser')?.remove();
 }
 
 function pcClubRows(rows){
