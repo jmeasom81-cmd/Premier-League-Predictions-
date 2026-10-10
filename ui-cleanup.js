@@ -229,6 +229,7 @@
           <div class="ucGroupTitle">Communications</div>
           <div class="ucToolGrid">
             ${tool('generator','✨ Message generator','Matchday · matchweek · form','comm')}
+            ${tool('daily','📣 Daily recap','Day so far · WhatsApp','comm')}
             ${tool('reminder','📲 Outstanding picks','Create reminder message','comm')}
           </div>
         </div>
@@ -237,6 +238,7 @@
           <div class="ucGroupTitle">Insights</div>
           <div class="ucToolGrid">
             ${tool('engagement','📈 Engagement','Who is using the app','insight')}
+            ${tool('player','👤 Individual daily stats','Player reports · share','insight')}
             ${tool('changes','🧠 Prediction changes','Did changing picks help?','insight')}
           </div>
         </div>
@@ -261,6 +263,8 @@
     const direct={
       generator:()=>window.openPLPMessageGenerator?.(),
       reminder:()=>clickOriginal('.waAdminCard [data-wa-open]'),
+      daily:()=>clickOriginal('.drAdminCard [data-dr-open]'),
+      player:()=>window.openPLPPlayerDayReport?.(),
       engagement:()=>clickOriginal('.engAdminCard [data-eng-open]'),
       changes:()=>clickOriginal('.pcAdminCard [data-pc-open]')
     };
