@@ -105,12 +105,12 @@ const prStats=[
  ['summary','Points, picks & remaining games'],['position','Daily ranking and gap to leader'],
  ['scoring','Correct outcomes & hit rate'],['exact','Exact scores'],
  ['compare','League-average comparison'],['near','Near misses'],
- ['blanks','Scoreless and missing picks'],['goals','Goals prediction accuracy'],
+ ['blanks','Scoreless and missing picks'],['podium','Top three players'],['rival','Compare with a rival'],['streak','Scoring streak'],['goals','Goals prediction accuracy'],
  ['types','Home/draw/away calls'],['best','Best and toughest calls'],
  ['matches','Match-by-match breakdown']
 ];
-let prDay='',prPlayer='',prData=null,prStyle='friendly',prPreset='detailed';
-let prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','best','matches']);
+let prDay='',prPlayer='',prRival='',prData=null,prStyle='friendly',prPreset='detailed',prRequest=0;
+let prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','podium','rival','streak','best','matches']);
 const prN=v=>Number.isFinite(Number(v))?Number(v):0;
 const prList=v=>Array.isArray(v)?v:[];
 const prOutcome=(h,a)=>h>a?'H':h<a?'A':'D';
@@ -184,6 +184,7 @@ async function prLoad(rawDay,playerId){
  }
  games.sort((a,b)=>String(a.kickoff).localeCompare(String(b.kickoff)));
  const me=totals.get(String(person.user_id));
+ const leaderboard=[...totals.values()].sort((a,b)=>b.points-a.points||b.exacts-a.exacts||b.correct-a.correct||drName(a).localeCompare(drName(b)));
  const scores=[...totals.values()].map(x=>x.points);
  const rank=1+scores.filter(x=>x>me.points).length;
  const dayBest=Math.max(0,...scores);
@@ -192,11 +193,14 @@ async function prLoad(rawDay,playerId){
  const number=prN(data.day_total_fixtures??fixtures.length);
  const remaining=Math.max(0,number-games.length);
  const days=prList(daily.data?.available_days).map(x=>x.date).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x));
- return {members,me,day,days:[...new Set([drTodayUK(),day,...days])].sort().reverse(),games,rank,ties,dayBest,average,number,remaining,live:games.some(x=>x.live)};
+ return {members,me,leaderboard,day,days:[...new Set([drTodayUK(),day,...days])].sort().reverse(),games,rank,ties,dayBest,average,number,remaining,live:games.some(x=>x.live),updatedAt:new Date().toISOString()};
 }
 function prMessage(d){
  const me=d.me,submitted=d.games.filter(x=>x.pick),zeros=submitted.filter(x=>x.pick.pts===0),missing=d.games.filter(x=>!x.pick);
  const near=submitted.filter(x=>x.goalError===1&&x.pick.pts!==3);
+ const rival=d.leaderboard.find(x=>String(x.user_id)===String(prRival)&&String(x.user_id)!==String(me.user_id));
+ let streak=0,longest=0;
+ for(const game of d.games){streak=game.pick&&game.pick.pts>0?streak+1:0;longest=Math.max(longest,streak)}
  const lines=['⚽ *Premier League Predictions*','*'+drName(me)+' — '+drDateLong(d.day)+'*'];
  if(d.live)lines.push('🔴 Live results: all points are provisional.');
  const section=(key,head,body)=>{if(prChecked.has(key))lines.push('',head,body)};
@@ -207,6 +211,9 @@ function prMessage(d){
  section('scoring','✅ *Scoring picks*',me.correct+'/'+me.submitted+' returned points ('+prPct(me.correct,me.submitted)+')');
  section('exact','🎯 *Exact scores*',me.exacts+' exact'+(me.exacts===1?'':'s')+' · '+prPct(me.exacts,me.submitted)+' exact hit rate · '+(me.correct-me.exacts)+' other correct outcomes');
  section('compare','📊 *League comparison*','League average '+d.average+' pts · '+drName(me)+' '+(me.points>=d.average?'+':'')+(Math.round((me.points-d.average)*10)/10)+' pts against average');
+ section('podium','🥇 *Daily leaders*',d.leaderboard.slice(0,3).map(x=>drOrdinal(1+d.leaderboard.filter(y=>y.points>x.points).length)+'. '+drName(x)+' — '+x.points+' pts · '+x.exacts+' exact'+(x.exacts===1?'':'s')).join('\n'));
+ if(rival)section('rival','⚔️ *Head to head*',drName(me)+' '+me.points+'–'+rival.points+' '+drName(rival)+' points · exacts '+me.exacts+'–'+rival.exacts+' · '+(me.points===rival.points?'Level on points':me.points>rival.points?drName(me)+' ahead by '+(me.points-rival.points):drName(rival)+' ahead by '+(rival.points-me.points)));
+ section('streak','🔥 *Scoring streak*','Longest run today: '+longest+' scoring prediction'+(longest===1?'':'s')+' in a row · current run: '+streak);
  section('near','😬 *One-goal near misses*',near.length?near.map(x=>x.home+' v '+x.away+': '+x.pick.h+'–'+x.pick.a+' (actual '+x.h+'–'+x.a+')').join('\n'):'None today');
  section('blanks','🥶 *Zeroes and missed picks*',zeros.length+' predicted games earned zero'+(missing.length?' · '+missing.length+' scored fixture'+(missing.length===1?'':'s')+' without a recorded pick':''));
  if(submitted.length){
@@ -237,10 +244,12 @@ function prRender(){
    '<option value="'+drEsc(x.user_id)+'"'+(String(x.user_id)===String(me.user_id)?' selected':'')+'>'+drEsc((x.badge||'⚽')+' '+drName(x))+'</option>').join('')+'</select></div>'+
  '<div class="prField"><label>Matchday date (UK)</label><input type="date" data-pr-date value="'+drEsc(d.day)+'"></div></div>'+
  '<div class="prNote">'+d.games.length+' scored matches · '+d.remaining+' awaiting results'+(d.live?' · live points provisional':'')+'</div>'+
+ '<div class="prField"><label>Compare with another player (optional)</label><select data-pr-rival><option value="">No comparison</option>'+
+ d.members.filter(x=>String(x.user_id)!==String(me.user_id)).map(x=>'<option value="'+drEsc(x.user_id)+'"'+(String(x.user_id)===String(prRival)?' selected':'')+'>'+drEsc((x.badge||'⚽')+' '+drName(x))+'</option>').join('')+'</select></div>'+
  '<div class="prField"><label>Recent days with results</label><select data-pr-days><option value="">Choose a date…</option>'+
  d.days.map(x=>'<option value="'+drEsc(x)+'">'+drEsc(drDateShort(x))+'</option>').join('')+'</select></div></div>'+
  '<div class="prCard"><h3>Daily snapshot</h3><div class="prKpis">'+
- [[me.points,'Points'],[me.exacts,'Exacts'],[me.correct+'/'+me.submitted,'Scoring picks'],[d.games.length?drOrdinal(d.rank):'—','Day rank']].map(x=>'<div><b>'+drEsc(x[0])+'</b><small>'+drEsc(x[1])+'</small></div>').join('')+'</div></div>'+
+ [[me.points,'Points'],[me.exacts,'Exacts'],[me.correct+'/'+me.submitted,'Scoring picks'],[d.games.length?drOrdinal(d.rank):'—','Day rank']].map(x=>'<div><b>'+drEsc(x[0])+'</b><small>'+drEsc(x[1])+'</small></div>').join('')+'</div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px"><small class="prNote">Updated '+drEsc(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'}).format(new Date(d.updatedAt)))+' UK</small><button type="button" class="prChip" data-pr-refresh>↻ Refresh latest scores</button></div></div>'+
  '<div class="prCard"><h3>Report length</h3><div class="prChips">'+
  [['quick','⚡ Quick'],['detailed','📊 Detailed'],['custom','⚙️ Custom']].map(x=>'<button type="button" class="prChip'+(prPreset===x[0]?' on':'')+'" data-pr-preset="'+x[0]+'">'+x[1]+'</button>').join('')+
  '</div><h3 style="margin-top:14px">Tone</h3><div class="prChips">'+
@@ -251,13 +260,15 @@ function prRender(){
  '</textarea><div class="prActions"><button type="button" data-pr-copy>📋 Copy</button><button type="button" data-pr-wa>📲 WhatsApp</button></div>'+
  '<p class="prNote">Nothing is sent automatically. Changing a selection regenerates the report; you can edit it before sharing.</p></div>'+
  '<p class="prNote">Uses sealed predictions and scored fixtures only; upcoming predictions remain hidden. Rankings compare active league members.</p>';
- el.querySelector('[data-pr-player]').onchange=e=>prRefresh(d.day,e.target.value);
+ el.querySelector('[data-pr-player]').onchange=e=>{if(String(e.target.value)===String(prRival))prRival='';prRefresh(d.day,e.target.value)};
+ el.querySelector('[data-pr-rival]').onchange=e=>{prRival=e.target.value;prRender()};
+ el.querySelector('[data-pr-refresh]').onclick=()=>prRefresh(d.day,me.user_id);
  el.querySelector('[data-pr-date]').onchange=e=>prRefresh(e.target.value,me.user_id);
  el.querySelector('[data-pr-days]').onchange=e=>{if(e.target.value)prRefresh(e.target.value,me.user_id)};
  el.querySelectorAll('[data-pr-preset]').forEach(b=>b.onclick=()=>{
    prPreset=b.dataset.prPreset;
    if(prPreset==='quick')prChecked=new Set(['summary','position','scoring','exact','blanks']);
-   if(prPreset==='detailed')prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','best','matches']);
+   if(prPreset==='detailed')prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','podium','rival','streak','best','matches']);
    prRender();
  });
  el.querySelectorAll('[data-pr-style]').forEach(b=>b.onclick=()=>{prStyle=b.dataset.prStyle;prRender()});
@@ -274,9 +285,18 @@ function prRender(){
 }
 async function prRefresh(date,player){
  const el=document.querySelector('.prOverlay .prBody');if(!el)return;
+ const request=++prRequest;
  el.innerHTML='<div class="drEmpty">Loading individual league statistics…</div>';
- try{prData=await prLoad(date,player);prDay=prData.day;prPlayer=prData.me.user_id;prRender()}
- catch(e){console.warn('Player daily report:',e);el.innerHTML='<div class="drEmpty">Could not load statistics.<p>'+drEsc(e?.message||String(e))+'</p><button type="button" class="drBtn copy" data-pr-retry>Try again</button></div>';el.querySelector('[data-pr-retry]').onclick=()=>prRefresh(date,player)}
+ try{
+   const next=await prLoad(date,player);
+   if(request!==prRequest||!el.isConnected)return;
+   prData=next;prDay=next.day;prPlayer=next.me.user_id;prRender();
+ }catch(e){
+   if(request!==prRequest||!el.isConnected)return;
+   console.warn('Player daily report:',e);
+   el.innerHTML='<div class="drEmpty">Could not load statistics.<p>'+drEsc(e?.message||String(e))+'</p><button type="button" class="drBtn copy" data-pr-retry>Try again</button></div>';
+   el.querySelector('[data-pr-retry]').onclick=()=>prRefresh(date,player);
+ }
 }
 async function prOpen(){
  if(!await drInitOwner())return;
@@ -284,9 +304,9 @@ async function prOpen(){
  const o=document.createElement('div');o.className='prOverlay';
  o.innerHTML='<div class="prShell"><div class="prHead"><div><b>👤 Individual Daily Stats</b><p>Choose a player · pick the stats · WhatsApp or copy</p></div><button type="button" class="prClose" aria-label="Close">✕</button></div><div class="prBody"></div></div>';
  document.body.appendChild(o);document.body.style.overflow='hidden';
- const close=()=>{o.remove();document.body.style.overflow=''};
+ const close=()=>{++prRequest;o.remove();document.body.style.overflow=''};
  o.querySelector('.prClose').onclick=close;o.onclick=e=>{if(e.target===o)close()};
- prPreset='detailed';prStyle='friendly';prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','best','matches']);
+ prPreset='detailed';prStyle='friendly';prRival='';prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','podium','rival','streak','best','matches']);
  await prRefresh(prDay||drTodayUK(),prPlayer);
  if(prData&&prData.number===0&&prData.day===drTodayUK()){
    const latest=prData.days.find(x=>x!==drTodayUK());if(latest)await prRefresh(latest,prPlayer);
@@ -298,4 +318,5 @@ function prInject(){
  const btn=document.createElement('button');btn.type='button';btn.className='btn prOpen';btn.dataset.prOpen='';
  btn.textContent='👤 Individual player daily stats';btn.onclick=prOpen;card.appendChild(btn);
 }
+window.openPLPPlayerDayReport=prOpen;
 prCSS();setInterval(prInject,1700);setTimeout(prInject,1000);
