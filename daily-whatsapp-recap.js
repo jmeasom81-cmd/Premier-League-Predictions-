@@ -40,8 +40,8 @@ async function drInitOwner(){
   if(drOwner&&drLeagueId)return true;if(drInitBusy)return false;drInitBusy=true;
   try{
     const {data:{session}}=await drSb.auth.getSession();if(!session)return false;const uid=session.user.id;
-    const {data:ms,error}=await drSb.from('league_members').select('league_id,status').eq('user_id',uid).eq('status','active');if(error)throw error;
-    for(const m of ms||[]){const {data:l}=await drSb.from('leagues').select('id,name,created_by').eq('id',m.league_id).single();if(String(l?.created_by)===String(uid)){drOwner=true;drLeagueId=l.id;drLeagueName=l.name||'';return true}}
+    const {data:ms,error}=await drSb.from('league_members').select('league_id,status,role').eq('user_id',uid).eq('status','active');if(error)throw error;
+    for(const m of ms||[]){const {data:l}=await drSb.from('leagues').select('id,name,created_by').eq('id',m.league_id).maybeSingle();if(m.role==='admin'||String(l?.created_by)===String(uid)){drOwner=true;drLeagueId=m.league_id;drLeagueName=l?.name||'';return true}}
     return false;
   }catch(e){console.warn('Daily recap owner check:',e);return false}finally{drInitBusy=false}
 }
@@ -299,7 +299,7 @@ async function prRefresh(date,player){
  }
 }
 async function prOpen(){
- if(!await drInitOwner())return;
+ if(!await drInitOwner()){alert('Individual player reports are available to league admins. If you are an admin, please sign out and back in.');return;}
  document.querySelector('.prOverlay')?.remove();
  const o=document.createElement('div');o.className='prOverlay';
  o.innerHTML='<div class="prShell"><div class="prHead"><div><b>👤 Individual Daily Stats</b><p>Choose a player · pick the stats · WhatsApp or copy</p></div><button type="button" class="prClose" aria-label="Close">✕</button></div><div class="prBody"></div></div>';
