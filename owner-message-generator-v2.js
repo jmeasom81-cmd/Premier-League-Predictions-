@@ -645,7 +645,7 @@ function mgScopedChanges(d){
     if(mgNum(x.impact)===0)return false;
     if(d.scope==='matchweek')return Number(x.matchweek)===Number(d.base?.matchweek||0);
     if(d.scope==='last6')return weeks.has(Number(x.matchweek||0));
-    if(d.scope==='matchday')return fixtureIds.has(String(x.fixture_id||''));
+    if(d.scope==='matchday'||d.scope==='match')return fixtureIds.has(String(x.fixture_id||''));
     return true;
   });
 
@@ -765,6 +765,22 @@ function mgPromptSection(s,d){
 
 function mgRandomStat(s,d){
   const stats=[];
+  if(d.scope==='prematch'){
+    const st=d.base?.prediction_stats||{};
+    const popular=mgArr(d.base?.popular_scores)[0];
+    const f=d.base?.selected_fixture;
+    if(mgNum(st.picks_count))stats.push(`${mgNum(st.picks_count)} locked picks are in for this fixture.`);
+    if(mgNum(st.unique_scorelines))stats.push(`The league has used ${mgNum(st.unique_scorelines)} different scorelines.`);
+    if(popular)stats.push(`The most popular score is ${popular.home_score}–${popular.away_score}, backed by ${mgNum(popular.picks)} player${mgNum(popular.picks)===1?'':'s'}.`);
+    if(f&&mgNum(st.home_count)!==mgNum(st.away_count)){
+      const side=mgNum(st.home_count)>mgNum(st.away_count)?f.home_team:f.away_team;
+      const n=Math.max(mgNum(st.home_count),mgNum(st.away_count));
+      stats.push(`${side} has the stronger win vote with ${n} pick${n===1?'':'s'}.`);
+    }
+    if(!stats.length)return '';
+    return `${mgEmoji('📊',s.emoji)}Prediction stat: ${mgPick(stats,5)}`;
+  }
+
   const e=mgExacts(d);
   const avg=mgAverage(d);
   if(e.total>=0)stats.push(`${e.total} exact scores were recorded in this sample.`);
@@ -779,7 +795,6 @@ function mgRandomStat(s,d){
   if(!stats.length)return '';
   return `${mgEmoji('📊',s.emoji)}Random stat: ${mgPick(stats,5)}`;
 }
-
 function mgBuild(s,d){
   mgSeed++;
   const focus=mgChooseFocus(s,d);
@@ -787,14 +802,21 @@ function mgBuild(s,d){
   sections.push(mgIntro(s,d));
   if(s.prompt)sections.push(mgPromptSection(s,d));
 
-  if(focus.includes('performers'))sections.push(mgPerformersSection(s,d));
-  if(focus.includes('movers'))sections.push(mgMoverSection(s,d));
-  if(focus.includes('exacts'))sections.push(mgExactSection(s,d));
-  if(focus.includes('unlucky'))sections.push(mgUnluckySection(s,d));
-  if(focus.includes('form'))sections.push(mgFormSection(s,d));
-  if(focus.includes('changes'))sections.push(mgChangeSection(s,d));
-  if((focus.includes('table')||s.table))sections.push(mgTableSection(s,d));
-  if(s.random)sections.push(mgRandomStat(s,d));
+  if(d.scope==='prematch'){
+    sections.push(mgPreMatchSection(s,d));
+    if(s.random)sections.push(mgRandomStat(s,d));
+    if(s.table)sections.push(mgTableSection(s,d));
+  }else{
+    if(focus.includes('performers'))sections.push(mgPerformersSection(s,d));
+    if(focus.includes('bottom'))sections.push(mgBottomSection(s,d));
+    if(focus.includes('movers'))sections.push(mgMoverSection(s,d));
+    if(focus.includes('exacts'))sections.push(mgExactSection(s,d));
+    if(focus.includes('unlucky'))sections.push(mgUnluckySection(s,d));
+    if(focus.includes('form'))sections.push(mgFormSection(s,d));
+    if(focus.includes('changes'))sections.push(mgChangeSection(s,d));
+    if((focus.includes('table')||s.table))sections.push(mgTableSection(s,d));
+    if(s.random)sections.push(mgRandomStat(s,d));
+  }
 
   let clean=sections.filter(Boolean);
 
@@ -806,40 +828,61 @@ function mgBuild(s,d){
     });
   }
 
-  const maxSections=s.length==='short'?4:s.length==='medium'?6:9;
+  const maxSections=s.length==='short'?4:s.length==='medium'?7:10;
   clean=clean.slice(0,maxSections);
 
   if(s.tone==='banter'&&s.length!=='short'){
-    const closers=s.mood==='stir'
-      ?['Same time next round. Bring better guesses. 😄','Screenshots are encouraged. Excuses are not. 😂','The table remembers everything. 👀']
-      :['On to the next one. 👀','Plenty of football left. 😄','We go again.'];
+    const closers=d.scope==='prematch'
+      ?['Kickoff will settle the arguments. 👀','Receipts saved. Let the football decide. 😄','Somebody is going to look very clever in a couple of hours. 😂']
+      :s.mood==='stir'
+        ?['Same time next round. Bring better guesses. 😄','Screenshots are encouraged. Excuses are not. 😂','The table remembers everything. 👀']
+        :['On to the next one. 👀','Plenty of football left. 😄','We go again.'];
     clean.push(mgPick(closers,7));
   }
 
   if(s.link)clean.push(`📲 Open the app:\n${MG_APP}`);
 
   let message=clean.join('\n\n');
-  if(s.emoji==='none')message=message.replace(/[⚽🌟🔥📈🚀📉🎯😬🍀🏆🧠🤦📊👀😂😄]/g,'').replace(/^\s+/gm,'');
+  if(s.emoji==='none')message=message.replace(/[⚽🌟🔥📈🚀📉🎯😬🍀🏆🧠🤦📊👀😂😄🔒🔮🥶]/g,'').replace(/^\s+/gm,'');
   return message.trim();
 }
-
 function mgTitleFor(d){
-  if(d.scope==='matchday')return `${mgDateLabel(d.base.selected_date)} · League update`;
+  if(d.scope==='prematch'){
+    const f=d.base?.selected_fixture;
+    return f?`${f.home_team} v ${f.away_team} · Pre-match picks`:'Pre-match prediction analysis';
+  }
+  if(d.scope==='match'){
+    const f=d.base?.selected_fixture;
+    return f?`${f.home_team} v ${f.away_team} · Match analysis`:'Individual match analysis';
+  }
+  if(d.scope==='matchday')return `${mgDateLabel(d.base.selected_date)} · Day so far`;
   if(d.scope==='matchweek')return `Matchweek ${Number(d.base.matchweek||0)} · League update`;
   const n=d.sampleMatchweeks?.length||0;
   return `Current form · Last ${n||6} matchweek${n===1?'':'s'}`;
 }
 
 function mgFactsHtml(d){
+  if(d.scope==='prematch'){
+    const st=d.base?.prediction_stats||{};
+    const top=mgArr(d.base?.popular_scores)[0];
+    return `<div class="mgPreviewFacts">
+      <div class="mgFact"><b>${mgNum(st.picks_count)}</b><span>Locked picks</span></div>
+      <div class="mgFact"><b>${mgNum(st.unique_scorelines)}</b><span>Scorelines</span></div>
+      <div class="mgFact"><b>${top?`${top.home_score}–${top.away_score}`:'—'}</b><span>Most popular</span></div>
+    </div>`;
+  }
   const e=mgExacts(d);
   const top=mgTopPerformers(d)[0];
+  const third=d.scope==='matchday'
+    ?mgNum(d.base?.day_total_fixtures)-mgNum(d.base?.day_scored_fixtures)
+    :d.near.total;
+  const thirdLabel=d.scope==='matchday'?'Still to come':'Near misses';
   return `<div class="mgPreviewFacts">
     <div class="mgFact"><b>${mgNum(top?.points)}</b><span>Top score</span></div>
     <div class="mgFact"><b>${e.total}</b><span>Exacts</span></div>
-    <div class="mgFact"><b>${d.near.total}</b><span>Near misses</span></div>
+    <div class="mgFact"><b>${Math.max(0,third)}</b><span>${thirdLabel}</span></div>
   </div>`;
 }
-
 function mgToast(t){
   document.querySelector('.mgToast')?.remove();
   const e=document.createElement('div');e.className='mgToast';e.textContent=t;document.body.appendChild(e);
