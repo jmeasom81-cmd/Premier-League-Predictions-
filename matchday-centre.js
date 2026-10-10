@@ -1,4 +1,4 @@
-// MATCH CENTRE V3.2 - fast active-window matchday experience
+// MATCH CENTRE V3.3 - resilient live-score fallback
 // History is the reliable base. Live feed + projected table are optional enhancements.
 // V3.2 uses a lightweight active-match RPC and parallel enhancement calls.
 
@@ -326,7 +326,7 @@ async function mc3Fetch(force=false,providerForce=false){
     let ctx={standings:[],ai_picks:[],current_user_id:mc3UserId};
     let feed={ok:false,live:[],recent_final:[],source:'history',source_label:'Prediction history'};
 
-    const [ctxSet,feedSet]=await Promise.allSettled([
+    const [ctxSet,feedSet,cacheSet]=await Promise.allSettled([
       mc3Timeout(
         mc3Sb.rpc('get_match_centre_context',{p_league_id:mc3LeagueId}),
         2200,
@@ -334,21 +334,35 @@ async function mc3Fetch(force=false,providerForce=false){
       ),
       mc3Timeout(
         mc3Sb.functions.invoke('live-score-feed',{body:{force:providerForce}}),
-        2200,
+        3800,
         'Live score provider'
+      ),
+      mc3Timeout(
+        mc3Sb.rpc('get_live_score_state_feed',{p_league_id:mc3LeagueId}),
+        1400,
+        'Stored live scores'
       )
     ]);
 
     if(ctxSet.status==='fulfilled'&&!ctxSet.value.error&&ctxSet.value.data){
       ctx={...ctx,...ctxSet.value.data};
     }else if(ctxSet.status==='rejected'){
-      console.warn('Match Centre V3.2 context enhancement unavailable:',ctxSet.reason);
+      console.warn('Match Centre V3.3 context enhancement unavailable:',ctxSet.reason);
     }
+
+    const cachedFeed=cacheSet.status==='fulfilled'&&!cacheSet.value.error&&cacheSet.value.data?.ok===true
+      ?cacheSet.value.data
+      :null;
 
     if(feedSet.status==='fulfilled'&&!feedSet.value.error&&feedSet.value.data?.ok===true){
       feed=feedSet.value.data;
+      if(!(feed.live||[]).length && cachedFeed?.live?.length){
+        feed=cachedFeed;
+      }
+    }else if(cachedFeed){
+      feed=cachedFeed;
     }else if(feedSet.status==='rejected'){
-      console.warn('Match Centre V3.2 live feed unavailable:',feedSet.reason);
+      console.warn('Match Centre V3.3 live feed unavailable:',feedSet.reason);
     }
 
     const history=mc3AddAi(histRes.data||[],ctx.ai_picks||[]);
