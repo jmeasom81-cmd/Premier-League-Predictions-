@@ -955,7 +955,8 @@ async function mgPopulateScopeSelectors(dayOverride=null){
   const c=await mgContext();
 
   if(scope==='matchday'||scope==='match'){
-    const currentDay=dayOverride||o.querySelector('[data-mg-day]')?.value||null;
+    const rawDay=dayOverride||o.querySelector('[data-mg-day]')?.value||'';
+    const currentDay=/^\d{4}-\d{2}-\d{2}$/.test(String(rawDay))?String(rawDay):null;
     const {data,error}=await mgSb.rpc('get_owner_message_scope',{
       p_league_id:c.leagueId,p_day:currentDay,p_fixture_id:null
     });
@@ -998,7 +999,23 @@ async function mgScopeChanged(){
   matchWrap.style.display=scope==='match'?'block':'none';
   preWrap.style.display=scope==='prematch'?'block':'none';
   mgData=null;
-  try{await mgPopulateScopeSelectors()}catch(e){console.warn('Message Generator scope:',e)}
+  try{
+    await mgPopulateScopeSelectors();
+  }catch(e){
+    console.warn('Message Generator scope:',e);
+    if(dayWrap.style.display!=='none'){
+      const s=o.querySelector('[data-mg-day]');
+      if(s)s.innerHTML='<option value="">Could not load days — tap scope again</option>';
+    }
+    if(matchWrap.style.display!=='none'){
+      const s=o.querySelector('[data-mg-match]');
+      if(s)s.innerHTML='<option value="">Could not load matches</option>';
+    }
+    if(preWrap.style.display!=='none'){
+      const s=o.querySelector('[data-mg-prematch]');
+      if(s)s.innerHTML='<option value="">Could not load locked fixtures</option>';
+    }
+  }
 }
 
 async function mgGenerate(regen=false){
@@ -1058,9 +1075,9 @@ async function mgOpen(){
           <button class="mgChoice" data-mg-scope="matchweek">Match week</button>
           <button class="mgChoice" data-mg-scope="last6">Last 6 game weeks · form</button>
         </div>
-        <div class="mgDayWrap"><div class="mgLabel">Day</div><select class="mgSelect" data-mg-day><option>Loading…</option></select></div>
-        <div class="mgMatchWrap" style="display:none"><div class="mgLabel">Match</div><select class="mgSelect" data-mg-match><option>Choose a day first</option></select></div>
-        <div class="mgPreMatchWrap" style="display:none"><div class="mgLabel">Locked fixture</div><select class="mgSelect" data-mg-prematch><option>Loading…</option></select><div class="mgHint">Pre-match analysis uses sealed predictions after the 4-hour lock and before kickoff.</div></div>
+        <div class="mgDayWrap"><div class="mgLabel">Day</div><select class="mgSelect" data-mg-day><option value="">Loading…</option></select></div>
+        <div class="mgMatchWrap" style="display:none"><div class="mgLabel">Match</div><select class="mgSelect" data-mg-match><option value="">Choose a day first</option></select></div>
+        <div class="mgPreMatchWrap" style="display:none"><div class="mgLabel">Locked fixture</div><select class="mgSelect" data-mg-prematch><option value="">Loading…</option></select><div class="mgHint">Pre-match analysis uses sealed predictions after the 4-hour lock and before kickoff.</div></div>
       </div>
 
       <div class="mgPanel">
