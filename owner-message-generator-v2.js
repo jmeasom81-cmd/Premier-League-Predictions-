@@ -949,22 +949,56 @@ function mgWireChoices(){
   }));
 }
 
+async function mgPopulateScopeSelectors(dayOverride=null){
+  const o=document.querySelector('.mgOverlay');if(!o)return;
+  const scope=o.querySelector('[data-mg-scope].active')?.dataset.mgScope||'matchday';
+  const c=await mgContext();
+
+  if(scope==='matchday'||scope==='match'){
+    const currentDay=dayOverride||o.querySelector('[data-mg-day]')?.value||null;
+    const {data,error}=await mgSb.rpc('get_owner_message_scope',{
+      p_league_id:c.leagueId,p_day:currentDay,p_fixture_id:null
+    });
+    if(error)throw error;
+    const days=mgArr(data?.available_days);
+    const daySelect=o.querySelector('[data-mg-day]');
+    const selected=String(data?.selected_date||currentDay||'');
+    daySelect.innerHTML=days.map(x=>`<option value="${mgEsc(x.date)}" ${String(x.date)===selected?'selected':''}>${mgEsc(mgDateLabel(x.date))} · ${mgNum(x.fixtures_count)} match${mgNum(x.fixtures_count)===1?'':'es'}</option>`).join('');
+
+    if(scope==='match'){
+      const matchSelect=o.querySelector('[data-mg-match]');
+      const fixtures=mgArr(data?.fixtures);
+      matchSelect.innerHTML=fixtures.length?fixtures.map(x=>{
+        const has=x.home_score!=null&&x.away_score!=null;
+        const state=has?`${x.home_score}–${x.away_score}`:(x.score_state==='pending'?'Not started':x.score_state||'Awaiting score');
+        return `<option value="${mgEsc(x.fixture_id)}">${mgEsc(x.home_team)} v ${mgEsc(x.away_team)} · ${mgEsc(state)}</option>`;
+      }).join(''):'<option value="">No matches on this day</option>';
+    }
+    return;
+  }
+
+  if(scope==='prematch'){
+    const {data,error}=await mgSb.rpc('get_owner_pre_match_analysis',{
+      p_league_id:c.leagueId,p_fixture_id:null
+    });
+    if(error)throw error;
+    const select=o.querySelector('[data-mg-prematch]');
+    const fixtures=mgArr(data?.available_fixtures);
+    select.innerHTML=fixtures.length?fixtures.map(x=>`<option value="${mgEsc(x.fixture_id)}">${mgEsc(x.home_team)} v ${mgEsc(x.away_team)} · MW${mgNum(x.matchweek)}</option>`).join(''):'<option value="">No locked upcoming fixtures yet</option>';
+  }
+}
+
 async function mgScopeChanged(){
   const o=document.querySelector('.mgOverlay');if(!o)return;
   const scope=o.querySelector('[data-mg-scope].active')?.dataset.mgScope||'matchday';
   const dayWrap=o.querySelector('.mgDayWrap');
-  dayWrap.style.display=scope==='matchday'?'block':'none';
+  const matchWrap=o.querySelector('.mgMatchWrap');
+  const preWrap=o.querySelector('.mgPreMatchWrap');
+  dayWrap.style.display=(scope==='matchday'||scope==='match')?'block':'none';
+  matchWrap.style.display=scope==='match'?'block':'none';
+  preWrap.style.display=scope==='prematch'?'block':'none';
   mgData=null;
-  if(scope==='matchday'){
-    try{
-      const c=await mgContext();
-      const {data,error}=await mgSb.rpc('get_owner_daily_recap',{p_league_id:c.leagueId,p_day:null});
-      if(error)throw error;
-      const days=mgArr(data?.available_days);
-      const select=o.querySelector('[data-mg-day]');
-      select.innerHTML=days.map(x=>`<option value="${mgEsc(x.date)}" ${String(x.date)===String(data?.selected_date)?'selected':''}>${mgEsc(mgDateLabel(x.date))} · ${mgNum(x.fixtures_count)} result${mgNum(x.fixtures_count)===1?'':'s'}</option>`).join('');
-    }catch(e){console.warn('Message Generator days:',e)}
-  }
+  try{await mgPopulateScopeSelectors()}catch(e){console.warn('Message Generator scope:',e)}
 }
 
 async function mgGenerate(regen=false){
@@ -972,12 +1006,18 @@ async function mgGenerate(regen=false){
   const o=document.querySelector('.mgOverlay');if(!o)return;
   const btn=o.querySelector('[data-mg-generate]');
   const s=mgSettings();
-  const day=s.scope==='matchday'?o.querySelector('[data-mg-day]')?.value||null:null;
+  const day=(s.scope==='matchday'||s.scope==='match')?o.querySelector('[data-mg-day]')?.value||null:null;
+  const fixture=s.scope==='match'
+    ?o.querySelector('[data-mg-match]')?.value||null
+    :s.scope==='prematch'
+      ?o.querySelector('[data-mg-prematch]')?.value||null
+      :null;
+  if((s.scope==='match'||s.scope==='prematch')&&!fixture){mgToast('Choose a match first');return}
   mgBusy=true;
   if(btn){btn.disabled=true;btn.textContent='Building from league data…'}
   try{
     if(!mgData||mgData.scope!==s.scope||regen===false){
-      mgData=await mgLoad(s.scope,day);
+      mgData=await mgLoad(s.scope,day,fixture);
     }
     const out=mgBuild(s,mgData);
     mgLastTitle=mgTitleFor(mgData);mgLastMessage=out;
@@ -995,7 +1035,6 @@ async function mgGenerate(regen=false){
     if(btn){btn.disabled=false;btn.textContent='✨ Generate message'}
   }
 }
-
 async function mgOpen(){
   try{await mgContext()}catch(e){mgToast(e.message||'Owner only');return}
   document.querySelector('.mgOverlay')?.remove();
@@ -1005,7 +1044,7 @@ async function mgOpen(){
   o.innerHTML=`<div class="mgShell">
     <div class="mgHead"><div class="mgHeadTop">
       <div><div class="mgEyebrow">League owner · communications</div><div class="mgTitle">Message Generator</div>
-      <div class="mgSub">Mix scope, tone, stats and story focus. Nothing is sent automatically.</div></div>
+      <div class="mgSub">Individual match · day so far · pre-match prediction analysis · matchweek · form. Nothing is sent automatically.</div></div>
       <button type="button" class="mgClose">✕</button>
     </div></div>
 
@@ -1013,11 +1052,15 @@ async function mgOpen(){
       <div class="mgPanel">
         <div class="mgPanelHead"><h2>1 · What are we talking about?</h2><span>Scope</span></div>
         <div class="mgChoices">
-          <button class="mgChoice active" data-mg-scope="matchday">Match day</button>
+          <button class="mgChoice" data-mg-scope="match">⚽ Individual match</button>
+          <button class="mgChoice active" data-mg-scope="matchday">📅 Day so far</button>
+          <button class="mgChoice" data-mg-scope="prematch">🔒 Pre-match</button>
           <button class="mgChoice" data-mg-scope="matchweek">Match week</button>
           <button class="mgChoice" data-mg-scope="last6">Last 6 game weeks · form</button>
         </div>
-        <div class="mgDayWrap"><div class="mgLabel">Result day</div><select class="mgSelect" data-mg-day><option>Loading…</option></select></div>
+        <div class="mgDayWrap"><div class="mgLabel">Day</div><select class="mgSelect" data-mg-day><option>Loading…</option></select></div>
+        <div class="mgMatchWrap" style="display:none"><div class="mgLabel">Match</div><select class="mgSelect" data-mg-match><option>Choose a day first</option></select></div>
+        <div class="mgPreMatchWrap" style="display:none"><div class="mgLabel">Locked fixture</div><select class="mgSelect" data-mg-prematch><option>Loading…</option></select><div class="mgHint">Pre-match analysis uses sealed predictions after the 4-hour lock and before kickoff.</div></div>
       </div>
 
       <div class="mgPanel">
@@ -1070,6 +1113,8 @@ async function mgOpen(){
 
         <div class="mgLabel">Extras</div>
         <div class="mgToggleGrid">
+          <label class="mgToggle"><input type="checkbox" data-mg-extra="top-earners" checked> Top points earners</label>
+          <label class="mgToggle"><input type="checkbox" data-mg-extra="bottom-earners"> Lowest points earners</label>
           <label class="mgToggle"><input type="checkbox" data-mg-extra="table" checked> Include top 3</label>
           <label class="mgToggle"><input type="checkbox" data-mg-extra="random" checked> Add random stat</label>
           <label class="mgToggle"><input type="checkbox" data-mg-extra="link" checked> Add app link</label>
@@ -1109,7 +1154,13 @@ async function mgOpen(){
   o.querySelector('[data-mg-copy]').onclick=mgCopy;
   o.querySelector('[data-mg-wa]').onclick=mgWhatsApp;
   o.querySelector('[data-mg-home]').onclick=mgPublishHome;
-  o.querySelector('[data-mg-day]').addEventListener('change',()=>{mgData=null});
+  o.querySelector('[data-mg-day]').addEventListener('change',async e=>{
+    mgData=null;
+    const scope=o.querySelector('[data-mg-scope].active')?.dataset.mgScope;
+    if(scope==='match'){try{await mgPopulateScopeSelectors(e.target.value)}catch(err){console.warn(err)}}
+  });
+  o.querySelector('[data-mg-match]').addEventListener('change',()=>{mgData=null});
+  o.querySelector('[data-mg-prematch]').addEventListener('change',()=>{mgData=null});
   await mgScopeChanged();
 }
 
