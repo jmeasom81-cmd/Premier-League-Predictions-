@@ -98,3 +98,203 @@ async function drInject(){
 }
 
 drCss();new MutationObserver(()=>{clearTimeout(drInjectTimer);drInjectTimer=setTimeout(drInject,180)}).observe(document.body,{childList:true,subtree:true});setInterval(drInject,1900);setTimeout(drInject,900);
+
+
+// Owner-only shareable daily reports for individual league players.
+const prStats=[
+ ['summary','Points, picks & remaining games'],['position','Daily ranking and gap to leader'],
+ ['scoring','Correct outcomes & hit rate'],['exact','Exact scores'],
+ ['compare','League-average comparison'],['near','Near misses'],
+ ['blanks','Scoreless and missing picks'],['goals','Goals prediction accuracy'],
+ ['types','Home/draw/away calls'],['best','Best and toughest calls'],
+ ['matches','Match-by-match breakdown']
+];
+let prDay='',prPlayer='',prData=null,prStyle='friendly',prPreset='detailed';
+let prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','best','matches']);
+const prN=v=>Number.isFinite(Number(v))?Number(v):0;
+const prList=v=>Array.isArray(v)?v:[];
+const prOutcome=(h,a)=>h>a?'H':h<a?'A':'D';
+const prPct=(a,b)=>b?Math.round(100*a/b)+'%':'—';
+const prDayFmt=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v))?v:drTodayUK();
+function prCSS(){
+ if(document.getElementById('player-day-report-css'))return;
+ const s=document.createElement('style');s.id='player-day-report-css';
+ s.textContent=[
+ '.prOpen{margin-top:8px;width:100%;background:#4b269d}',
+ '.prOverlay{position:fixed;inset:0;z-index:3600;background:#171126aa;display:flex;align-items:flex-end;justify-content:center;padding:8px}',
+ '.prShell{width:min(740px,100%);max-height:94dvh;overflow:auto;background:#f7f6fb;border-radius:24px 24px 12px 12px}',
+ '.prHead{position:sticky;top:0;z-index:3;padding:15px;background:linear-gradient(120deg,#241153,#4b269d);color:white;display:flex;justify-content:space-between;gap:12px;border-radius:24px 24px 0 0}',
+ '.prHead b{font-size:19px}.prHead p{font-size:10px;opacity:.8;margin:5px 0}.prClose{height:40px;width:40px;border:0;border-radius:12px;background:#ffffff26;color:white;font-size:21px}',
+ '.prBody{padding:12px}.prCard{padding:12px;margin-bottom:10px;background:white;border:1px solid #e7e4ef;border-radius:15px}',
+ '.prCard h3{font-size:13px;margin:0 0 9px}.prFields{display:grid;grid-template-columns:1fr 1fr;gap:9px}',
+ '.prField label{font-size:10px;font-weight:850;display:block;margin-bottom:5px;color:#665d79}.prField select,.prField input{width:100%;min-width:0;padding:10px 7px;border:1px solid #d8d3e5;border-radius:10px;font-size:12px;background:white;color:#231733}',
+ '.prChips{display:flex;gap:6px;flex-wrap:wrap}.prChip{border:1px solid #d8d3e5;background:#f5f3fa;color:#4b337c;border-radius:99px;padding:8px 10px;font-size:10px;font-weight:850}.prChip.on{background:#4b269d;color:white;border-color:#4b269d}',
+ '.prOptions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.prOptions label{display:flex;align-items:flex-start;gap:6px;font-size:10.5px;line-height:1.4}.prOptions input{accent-color:#4b269d;margin-top:2px}',
+ '.prKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.prKpis div{background:#f5f3fa;border-radius:10px;padding:9px 4px;text-align:center}.prKpis b{font-size:17px;display:block}.prKpis small{font-size:9px;color:#766b85}',
+ '.prText{width:100%;min-height:300px;border:1px solid #d9d2e7;border-radius:12px;padding:10px;font-size:12px;line-height:1.5;resize:vertical;color:#211c2d}',
+ '.prActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.prActions button{border:0;border-radius:11px;background:#efecf5;color:#343047;padding:11px;font-size:11px;font-weight:900}.prActions button:last-child{background:#08775c;color:white}',
+ '.prNote{font-size:10px;line-height:1.5;color:#797080;margin-top:8px}',
+ '@media(max-width:360px){.prOptions{grid-template-columns:1fr}.prKpis b{font-size:14px}}'
+ ].join('');
+ document.head.appendChild(s);
+}
+async function prMembers(){
+ const {data,error}=await drSb.from('league_members').select('user_id,status').eq('league_id',drLeagueId).eq('status','active');
+ if(error)throw error;
+ const ids=prList(data).map(x=>x.user_id);
+ if(!ids.length)return [];
+ const {data:profiles,error:ep}=await drSb.from('profiles').select('user_id,display_name,team_name,badge').in('user_id',ids);
+ if(ep)throw ep;
+ const map=new Map(prList(profiles).map(x=>[String(x.user_id),x]));
+ return ids.map(id=>({...(map.get(String(id))||{}),user_id:id})).sort((a,b)=>drName(a).localeCompare(drName(b)));
+}
+async function prLoad(rawDay,playerId){
+ if(!await drInitOwner())throw Error('League owner access required');
+ const requested=prDayFmt(rawDay);
+ const [scope,members,daily]=await Promise.all([
+   drSb.rpc('get_owner_message_scope',{p_league_id:drLeagueId,p_day:requested,p_fixture_id:null}),
+   prMembers(),
+   drSb.rpc('get_owner_daily_recap',{p_league_id:drLeagueId,p_day:requested})
+ ]);
+ if(scope.error)throw scope.error;
+ const data=scope.data||{},day=data.selected_date||requested;
+ const person=members.find(x=>String(x.user_id)===String(playerId))||members[0];
+ if(!person)throw Error('No league members found');
+ const fixtures=prList(data.fixtures),byId=new Map(fixtures.map(x=>[String(x.fixture_id),x]));
+ const scored=prList(data.scored_rows).filter(f=>f.result_home_score!=null&&f.result_away_score!=null);
+ const totals=new Map(members.map(x=>[String(x.user_id),{...x,points:0,correct:0,exacts:0,submitted:0}]));
+ const games=[];
+ for(const f of scored){
+   const actualH=prN(f.result_home_score),actualA=prN(f.result_away_score);
+   let ownPick=null;
+   for(const p of prList(f.predictions)){
+     const member=totals.get(String(p.user_id));
+     if(!member||p.home_score==null||p.away_score==null)continue;
+     const h=prN(p.home_score),a=prN(p.away_score);
+     const pts=h===actualH&&a===actualA?3:prOutcome(h,a)===prOutcome(actualH,actualA)?1:0;
+     member.points+=pts;member.correct+=pts>0?1:0;member.exacts+=pts===3?1:0;member.submitted++;
+     if(String(p.user_id)===String(person.user_id))ownPick={h,a,pts};
+   }
+   const meta=byId.get(String(f.fixture_id))||{};
+   games.push({
+     home:f.home_team||meta.home_team||'Home',away:f.away_team||meta.away_team||'Away',
+     h:actualH,a:actualA,pick:ownPick,live:(meta.score_state||f.score_state)==='live',
+     kickoff:meta.kickoff_at||f.kickoff_at||'',goalError:ownPick?Math.abs(ownPick.h-actualH)+Math.abs(ownPick.a-actualA):null
+   });
+ }
+ games.sort((a,b)=>String(a.kickoff).localeCompare(String(b.kickoff)));
+ const me=totals.get(String(person.user_id));
+ const scores=[...totals.values()].map(x=>x.points);
+ const rank=1+scores.filter(x=>x>me.points).length;
+ const dayBest=Math.max(0,...scores);
+ const ties=scores.filter(x=>x===me.points).length;
+ const average=scores.length?Math.round(scores.reduce((a,b)=>a+b,0)*10/scores.length)/10:0;
+ const number=prN(data.day_total_fixtures??fixtures.length);
+ const remaining=Math.max(0,number-games.length);
+ const days=prList(daily.data?.available_days).map(x=>x.date).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x));
+ return {members,me,day,days:[...new Set([drTodayUK(),day,...days])].sort().reverse(),games,rank,ties,dayBest,average,number,remaining,live:games.some(x=>x.live)};
+}
+function prMessage(d){
+ const me=d.me,submitted=d.games.filter(x=>x.pick),zeros=submitted.filter(x=>x.pick.pts===0),missing=d.games.filter(x=>!x.pick);
+ const near=submitted.filter(x=>x.goalError===1&&x.pick.pts!==3);
+ const lines=['⚽ *Premier League Predictions*','*'+drName(me)+' — '+drDateLong(d.day)+'*'];
+ if(d.live)lines.push('🔴 Live results: all points are provisional.');
+ const section=(key,head,body)=>{if(prChecked.has(key))lines.push('',head,body)};
+ if(!d.number&&!d.games.length)return 'No scheduled Premier League fixtures on '+drDateLong(d.day)+'. Choose another matchday.';
+ section('summary','🏅 *Today*',me.points+' points · '+me.submitted+'/'+d.games.length+' scored fixtures predicted'+(d.remaining?' · '+d.remaining+' still awaiting scores':''));
+ section('position','🏆 *Daily position*',drOrdinal(d.rank)+' of '+d.members.length+(d.ties>1?' (joint on points)':'')+' · '+(d.dayBest-me.points)+' behind today’s top score');
+ section('scoring','✅ *Scoring picks*',me.correct+'/'+me.submitted+' returned points ('+prPct(me.correct,me.submitted)+')');
+ section('exact','🎯 *Exact scores*',me.exacts+' exact'+(me.exacts===1?'':'s')+' · '+prPct(me.exacts,me.submitted)+' exact hit rate · '+(me.correct-me.exacts)+' other correct outcomes');
+ section('compare','📊 *League comparison*','League average '+d.average+' pts · '+drName(me)+' '+(me.points>=d.average?'+':'')+(Math.round((me.points-d.average)*10)/10)+' pts against average');
+ section('near','😬 *One-goal near misses*',near.length?near.map(x=>x.home+' v '+x.away+': '+x.pick.h+'–'+x.pick.a+' (actual '+x.h+'–'+x.a+')').join('\n'):'None today');
+ section('blanks','🥶 *Zeroes and missed picks*',zeros.length+' predicted games earned zero'+(missing.length?' · '+missing.length+' scored fixture'+(missing.length===1?'':'s')+' without a recorded pick':''));
+ if(submitted.length){
+   const goalP=submitted.reduce((n,x)=>n+x.pick.h+x.pick.a,0),goalA=submitted.reduce((n,x)=>n+x.h+x.a,0);
+   const err=Math.round(submitted.reduce((n,x)=>n+x.goalError,0)*10/submitted.length)/10;
+   section('goals','🥅 *Goals accuracy*','Predicted '+goalP+' goals · actual '+goalA+' · average scoreline error '+err+' goals');
+   const split={H:0,D:0,A:0};
+   submitted.forEach(x=>split[prOutcome(x.pick.h,x.pick.a)]++);
+   section('types','🔮 *Calls made*',split.H+' home wins · '+split.D+' draws · '+split.A+' away wins');
+   const best=[...submitted].sort((a,b)=>b.pick.pts-a.pick.pts||a.goalError-b.goalError)[0];
+   const worst=[...submitted].sort((a,b)=>a.pick.pts-b.pick.pts||b.goalError-a.goalError)[0];
+   section('best','⭐ *Standout calls*','Best: '+best.home+' v '+best.away+' '+best.pick.h+'–'+best.pick.a+' ('+best.pick.pts+' pts)'+
+     (best!==worst?'\nToughest: '+worst.home+' v '+worst.away+' '+worst.pick.h+'–'+worst.pick.a+' ('+worst.pick.pts+' pts)':''));
+ }
+ section('matches','📋 *Match by match*',d.games.map(x=>x.home+' '+x.h+'–'+x.a+' '+x.away+(x.live?' (LIVE)':'')+
+   '\n  '+(x.pick?'Picked '+x.pick.h+'–'+x.pick.a+' · '+x.pick.pts+' pts':'No recorded prediction')).join('\n')||'No scores available yet');
+ if(d.remaining)lines.push('','⏳ '+d.remaining+' fixture'+(d.remaining===1?'':'s')+' awaiting scores. Their predictions are not revealed.');
+ if(prStyle==='banter'&&d.games.length)lines.push('',me.exacts?'🎯 Actual football oracle behaviour. 👀':me.points?'⚽ The bragging rights are still in play. 😂':'😬 A quiet day for the crystal ball.');
+ if(prStyle==='serious')lines[0]='*Premier League Predictions — Player Report*';
+ lines.push('','📲 '+DR_APP);
+ return lines.join('\n').replace(/\n{3,}/g,'\n\n');
+}
+function prRender(){
+ const d=prData,el=document.querySelector('.prOverlay .prBody');if(!d||!el)return;
+ const me=d.me;
+ el.innerHTML='<div class="prCard"><div class="prFields">'+
+ '<div class="prField"><label>Choose player</label><select data-pr-player>'+d.members.map(x=>
+   '<option value="'+drEsc(x.user_id)+'"'+(String(x.user_id)===String(me.user_id)?' selected':'')+'>'+drEsc((x.badge||'⚽')+' '+drName(x))+'</option>').join('')+'</select></div>'+
+ '<div class="prField"><label>Matchday date (UK)</label><input type="date" data-pr-date value="'+drEsc(d.day)+'"></div></div>'+
+ '<div class="prNote">'+d.games.length+' scored matches · '+d.remaining+' awaiting results'+(d.live?' · live points provisional':'')+'</div>'+
+ '<div class="prField"><label>Recent days with results</label><select data-pr-days><option value="">Choose a date…</option>'+
+ d.days.map(x=>'<option value="'+drEsc(x)+'">'+drEsc(drDateShort(x))+'</option>').join('')+'</select></div></div>'+
+ '<div class="prCard"><h3>Daily snapshot</h3><div class="prKpis">'+
+ [[me.points,'Points'],[me.exacts,'Exacts'],[me.correct+'/'+me.submitted,'Scoring picks'],[drOrdinal(d.rank),'Day rank']].map(x=>'<div><b>'+drEsc(x[0])+'</b><small>'+drEsc(x[1])+'</small></div>').join('')+'</div></div>'+
+ '<div class="prCard"><h3>Report length</h3><div class="prChips">'+
+ [['quick','⚡ Quick'],['detailed','📊 Detailed'],['custom','⚙️ Custom']].map(x=>'<button type="button" class="prChip'+(prPreset===x[0]?' on':'')+'" data-pr-preset="'+x[0]+'">'+x[1]+'</button>').join('')+
+ '</div><h3 style="margin-top:14px">Tone</h3><div class="prChips">'+
+ [['friendly','🙂 Friendly'],['banter','😄 Banter'],['serious','📋 Straight stats']].map(x=>'<button type="button" class="prChip'+(prStyle===x[0]?' on':'')+'" data-pr-style="'+x[0]+'">'+x[1]+'</button>').join('')+
+ '</div></div><div class="prCard"><h3>Include these stats</h3><div class="prOptions">'+
+ prStats.map(x=>'<label><input type="checkbox" data-pr-stat="'+x[0]+'"'+(prChecked.has(x[0])?' checked':'')+'>'+drEsc(x[1])+'</label>').join('')+
+ '</div></div><div class="prCard"><h3>Editable player report</h3><textarea class="prText" data-pr-message>'+drEsc(prMessage(d))+
+ '</textarea><div class="prActions"><button type="button" data-pr-copy>📋 Copy</button><button type="button" data-pr-wa>📲 WhatsApp</button></div>'+
+ '<p class="prNote">Nothing is sent automatically. Changing a selection regenerates the report; you can edit it before sharing.</p></div>'+
+ '<p class="prNote">Uses sealed predictions and scored fixtures only; upcoming predictions remain hidden. Rankings compare active league members.</p>';
+ el.querySelector('[data-pr-player]').onchange=e=>prRefresh(d.day,e.target.value);
+ el.querySelector('[data-pr-date]').onchange=e=>prRefresh(e.target.value,me.user_id);
+ el.querySelector('[data-pr-days]').onchange=e=>{if(e.target.value)prRefresh(e.target.value,me.user_id)};
+ el.querySelectorAll('[data-pr-preset]').forEach(b=>b.onclick=()=>{
+   prPreset=b.dataset.prPreset;
+   if(prPreset==='quick')prChecked=new Set(['summary','position','scoring','exact','blanks']);
+   if(prPreset==='detailed')prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','best','matches']);
+   prRender();
+ });
+ el.querySelectorAll('[data-pr-style]').forEach(b=>b.onclick=()=>{prStyle=b.dataset.prStyle;prRender()});
+ el.querySelectorAll('[data-pr-stat]').forEach(b=>b.onchange=e=>{
+   prPreset='custom';if(e.target.checked)prChecked.add(e.target.dataset.prStat);else prChecked.delete(e.target.dataset.prStat);
+   prRender();
+ });
+ el.querySelector('[data-pr-copy]').onclick=e=>drCopy(el.querySelector('[data-pr-message]').value,e.currentTarget);
+ el.querySelector('[data-pr-wa]').onclick=()=>{
+   const msg=el.querySelector('[data-pr-message]').value.trim();if(!msg)return;
+   const link='https://wa.me/?text='+encodeURIComponent(msg);
+   const opened=window.open(link,'_blank','noopener');if(!opened)location.href=link;
+ };
+}
+async function prRefresh(date,player){
+ const el=document.querySelector('.prOverlay .prBody');if(!el)return;
+ el.innerHTML='<div class="drEmpty">Loading individual league statistics…</div>';
+ try{prData=await prLoad(date,player);prDay=prData.day;prPlayer=prData.me.user_id;prRender()}
+ catch(e){console.warn('Player daily report:',e);el.innerHTML='<div class="drEmpty">Could not load statistics.<p>'+drEsc(e?.message||String(e))+'</p><button type="button" class="drBtn copy" data-pr-retry>Try again</button></div>';el.querySelector('[data-pr-retry]').onclick=()=>prRefresh(date,player)}
+}
+async function prOpen(){
+ if(!await drInitOwner())return;
+ document.querySelector('.prOverlay')?.remove();
+ const o=document.createElement('div');o.className='prOverlay';
+ o.innerHTML='<div class="prShell"><div class="prHead"><div><b>👤 Individual Daily Stats</b><p>Choose a player · pick the stats · WhatsApp or copy</p></div><button type="button" class="prClose" aria-label="Close">✕</button></div><div class="prBody"></div></div>';
+ document.body.appendChild(o);document.body.style.overflow='hidden';
+ const close=()=>{o.remove();document.body.style.overflow=''};
+ o.querySelector('.prClose').onclick=close;o.onclick=e=>{if(e.target===o)close()};
+ prPreset='detailed';prStyle='friendly';prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','best','matches']);
+ await prRefresh(prDay||drTodayUK(),prPlayer);
+ if(prData&&prData.number===0&&prData.day===drTodayUK()){
+   const latest=prData.days.find(x=>x!==drTodayUK());if(latest)await prRefresh(latest,prPlayer);
+ }
+}
+function prInject(){
+ const card=document.querySelector('#main .drAdminCard');
+ if(!card||card.querySelector('[data-pr-open]'))return;
+ const btn=document.createElement('button');btn.type='button';btn.className='btn prOpen';btn.dataset.prOpen='';
+ btn.textContent='👤 Individual player daily stats';btn.onclick=prOpen;card.appendChild(btn);
+}
+prCSS();setInterval(prInject,1700);setTimeout(prInject,1000);
