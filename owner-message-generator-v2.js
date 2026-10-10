@@ -617,7 +617,7 @@ function mgFormSection(s,d){
 function mgTableSection(s,d){
   const rows=mgTable(d);
   if(!rows.length)return '';
-  const line=rows.slice(0,3).map(x=>`${x.position||''}. ${x.badge||'⚽'} ${mgTeam(x)} — ${mgNum(x.points)} pts`).join('\n');
+  const line=rows.slice(0,3).map((x,i)=>`${x.position||i+1}. ${x.badge||'⚽'} ${mgTeam(x)} — ${mgNum(x.points??x.total_points)} pts`).join('\n');
   return (s.tone==='serious'?'Current top 3':'🏆 Top of the table')+'\n'+line;
 }
 
