@@ -1,4 +1,4 @@
-// LIVE VIDIPRINTER V1.3
+// LIVE VIDIPRINTER V1.4
 // Persistent Match Centre story feed: goals, VAR reversals, score corrections and full time.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -14,6 +14,7 @@ let lvLoadedAt=0;
 let lvLoading=null;
 let lvShowAll=false;
 let lvTimer=null;
+const lvSyntheticTimes=new Map();
 
 const lvEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -65,6 +66,7 @@ function lvCss(){
     .lvEvent.goal::before{background:#ff5064}
     .lvEvent.no_goal::before{background:#ffbf47}
     .lvEvent.correction::before{background:#ffbf47}
+    .lvEvent.score_update::before{background:#74a8ff}
     .lvEvent.full_time::before{background:#56c89d}
     .lvEvent.overturned{opacity:.48}
     .lvEvent.overturned .lvHeadline{text-decoration:line-through}
@@ -76,6 +78,7 @@ function lvCss(){
     }
     .lvStatus.checking{background:#3a3020;color:#ffd788}
     .lvStatus.var{background:#38252a;color:#ff9ba7}
+    .lvStatus.update{background:#243148;color:#a9caff}
     .lvStatus.ft{background:#18382e;color:#86e2be}
     .lvScore{font-size:8.5px;color:#c1bacb;margin-top:3px;font-weight:850}
     .lvImpact{font-size:9.5px;color:#fff;margin-top:5px;line-height:1.35;font-weight:850}
@@ -112,20 +115,86 @@ async function lvLoad(force=false){
   lvLoading=(async()=>{
     const leagueId=await lvContext();
     if(!leagueId)return [];
-    const {data,error}=await lvSb.rpc('get_live_vidiprinter',{
-      p_league_id:leagueId,
-      p_limit:40
-    });
-    if(error)throw error;
-    lvEvents=Array.isArray(data)?data:[];
+
+    const [eventRes,stateRes]=await Promise.allSettled([
+      lvSb.rpc('get_live_vidiprinter',{p_league_id:leagueId,p_limit:40}),
+      lvSb.rpc('get_live_score_state_feed',{p_league_id:leagueId})
+    ]);
+
+    if(eventRes.status==='rejected')throw eventRes.reason;
+    if(eventRes.value.error)throw eventRes.value.error;
+
+    const events=Array.isArray(eventRes.value.data)?eventRes.value.data:[];
+    const stateFeed=stateRes.status==='fulfilled'&&!stateRes.value.error
+      ?stateRes.value.data
+      :null;
+
+    const merged=[...events];
+    for(const s of stateFeed?.live||[]){
+      if(s.home_score==null||s.away_score==null)continue;
+      if(Number(s.home_score)+Number(s.away_score)<=0)continue;
+
+      const fixtureId=String(s.app_fixture_id||'');
+      const alreadyRepresented=events.some(e=>
+        String(e.fixture_id||'')===fixtureId &&
+        Number(e.home_score)===Number(s.home_score) &&
+        Number(e.away_score)===Number(s.away_score)
+      );
+      if(alreadyRepresented)continue;
+
+      const key=`${fixtureId}:${s.home_score}-${s.away_score}`;
+      if(!lvSyntheticTimes.has(key)){
+        lvSyntheticTimes.set(key,s.observed_at||new Date().toISOString());
+      }
+
+      merged.push({
+        id:'state:'+key,
+        fixture_id:fixtureId,
+        event_type:'score_update',
+        event_status:'confirmed',
+        minute:null,
+        prev_home_score:null,
+        prev_away_score:null,
+        home_score:s.home_score,
+        away_score:s.away_score,
+        headline:'LIVE SCORE UPDATE',
+        impact_primary:'Score feed caught up with the latest provider state',
+        impact_secondary:null,
+        home_team:s.home_team,
+        away_team:s.away_team,
+        created_at:lvSyntheticTimes.get(key),
+        synthetic:true
+      });
+    }
+
+    merged.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+    lvEvents=merged.slice(0,40);
     lvLoadedAt=Date.now();
     return lvEvents;
   })();
   try{return await lvLoading}finally{lvLoading=null}
 }
 
+function lvKind(e){
+  const oldTotal=(e.prev_home_score==null||e.prev_away_score==null)
+    ?null
+    :Number(e.prev_home_score)+Number(e.prev_away_score);
+  const newTotal=(e.home_score==null||e.away_score==null)
+    ?null
+    :Number(e.home_score)+Number(e.away_score);
+
+  // If the feed jumps forward by more than one goal between checks, that is
+  // a catch-up update, not a correction. We do not invent a scorer/minute.
+  if(e.event_type==='correction'&&oldTotal!=null&&newTotal!=null&&newTotal>oldTotal){
+    return 'score_update';
+  }
+  return e.event_type;
+}
+
 function lvMinute(e){
-  if(e.event_type==='full_time')return 'FT';
+  const kind=lvKind(e);
+  if(kind==='full_time')return 'FT';
+  if(kind==='score_update'||kind==='correction')return '';
   const n=Number(e.minute||0);
   if(!n)return '';
   return n>=90?'90+′':`${n}′`;
@@ -140,29 +209,39 @@ function lvTime(v){
 }
 
 function lvStatus(e){
+  const kind=lvKind(e);
   if(e.event_status==='overturned')return '<span class="lvStatus var">Overturned</span>';
-  if(e.event_type==='no_goal')return '<span class="lvStatus var">VAR / no goal</span>';
-  if(e.event_type==='correction')return '<span class="lvStatus var">Corrected</span>';
-  if(e.event_type==='full_time')return '<span class="lvStatus ft">Final</span>';
+  if(kind==='no_goal')return '<span class="lvStatus var">VAR / no goal</span>';
+  if(kind==='score_update')return '<span class="lvStatus update">Caught up</span>';
+  if(kind==='correction')return '<span class="lvStatus var">Corrected</span>';
+  if(kind==='full_time')return '<span class="lvStatus ft">Final</span>';
   if(e.event_status==='provisional')return '<span class="lvStatus checking">Checking</span>';
   return '';
 }
 
 function lvEventHtml(e){
+  const kind=lvKind(e);
   const score=(e.home_score!=null&&e.away_score!=null)
     ?`${lvEsc(e.home_team)} ${lvEsc(e.home_score)}–${lvEsc(e.away_score)} ${lvEsc(e.away_team)}`
     :'';
   const minute=lvMinute(e);
   const stamp=lvTime(e.created_at);
   const meta=[minute,score,stamp].filter(Boolean).join(' · ');
+  const headline=kind==='score_update'
+    ?(e.synthetic?'LIVE SCORE UPDATE':'SCORE UPDATE')
+    :e.headline;
+  let primary=e.impact_primary||'';
+  if(kind==='score_update'&&/corrected score/i.test(primary)){
+    primary='Live score caught up after a provider refresh';
+  }
 
-  return `<div class="lvEvent ${lvEsc(e.event_type)} ${e.event_status==='overturned'?'overturned':''}">
+  return `<div class="lvEvent ${lvEsc(kind)} ${e.event_status==='overturned'?'overturned':''}">
     <div class="lvTop">
-      <div class="lvHeadline">${lvEsc(e.headline)}</div>
+      <div class="lvHeadline">${lvEsc(headline)}</div>
       ${lvStatus(e)}
     </div>
     <div class="lvScore">${lvEsc(meta)}</div>
-    ${e.impact_primary?`<div class="lvImpact">${lvEsc(e.impact_primary)}</div>`:''}
+    ${primary?`<div class="lvImpact">${lvEsc(primary)}</div>`:''}
     ${e.impact_secondary?`<div class="lvImpact2">${lvEsc(e.impact_secondary)}</div>`:''}
   </div>`;
 }
@@ -174,7 +253,7 @@ function lvMarkup(){
   const signature=[
     lvShowAll?'all':'latest',
     ...events.map(e=>[
-      e.id,e.event_type,e.event_status,e.minute,
+      e.id,lvKind(e),e.event_status,e.minute,
       e.home_score,e.away_score,e.impact_primary,e.impact_secondary
     ].join(':'))
   ].join('|');
