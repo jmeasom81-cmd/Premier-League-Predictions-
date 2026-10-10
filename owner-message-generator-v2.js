@@ -407,15 +407,19 @@ function mgPromptFlags(prompt=''){
 }
 
 function mgChooseFocus(s,d){
+  if(d.scope==='prematch')return ['predictions'];
   const manual=!s.focuses.includes('auto');
-  const out=manual?[...s.focuses]:['performers','exacts'];
+  const out=manual?[...s.focuses]:[];
   if(!manual){
+    if(s.topEarners)out.push('performers');
+    out.push('exacts');
     const mv=mgMovers(d);
     if(mv.up.length)out.push('movers');
     if(d.near.total)out.push('unlucky');
     if(d.scope==='last6')out.push('form');
     if(s.length!=='short')out.push('table');
   }
+  if(s.bottomEarners)out.push('bottom');
 
   const f=mgPromptFlags(s.prompt);
   if(f.movers||f.falls)out.push('movers');
@@ -427,7 +431,6 @@ function mgChooseFocus(s,d){
 
   return [...new Set(out)];
 }
-
 function mgLinePeople(rows,limit=3,metric='points'){
   return rows.slice(0,limit).map((x,i)=>{
     const name=mgName(x);
@@ -438,6 +441,40 @@ function mgLinePeople(rows,limit=3,metric='points'){
 
 function mgIntro(s,d){
   const scope=mgScopeTitle(d);
+
+  if(d.scope==='prematch'){
+    const f=d.base?.selected_fixture;
+    if(!f)return 'No locked pre-match fixture is available yet.';
+    if(s.tone==='banter')return `🔒 Predictions are locked for ${f.home_team} v ${f.away_team}. Time to see who has been brave and who has played it safe. 👀`;
+    if(s.tone==='serious')return `Pre-match prediction analysis: ${f.home_team} v ${f.away_team}.`;
+    return `Predictions are locked for ${f.home_team} v ${f.away_team}. Here is how the league sees it before kickoff.`;
+  }
+
+  if(d.scope==='matchday'){
+    const total=mgNum(d.base?.day_total_fixtures);
+    const scored=mgNum(d.base?.day_scored_fixtures);
+    const fixtures=mgArr(d.base?.fixtures);
+    const remaining=fixtures.filter(x=>x.score_state==='pending').length;
+    const live=fixtures.filter(x=>x.score_state==='live').length;
+    let progress=`${scope}: ${scored} of ${total} match${total===1?'':'es'} have a score on the board`;
+    if(live)progress+=` · ${live} live`;
+    if(remaining)progress+=` · ${remaining} still to come`;
+    progress+='.';
+    if(s.tone==='banter')return progress+' Plenty has happened already. 😄';
+    return progress;
+  }
+
+  if(d.scope==='match'){
+    const f=d.base?.selected_fixture;
+    if(!f)return 'Individual match analysis.';
+    const has=f.home_score!=null&&f.away_score!=null;
+    if(has){
+      const status=f.score_state==='final'?'FT':f.score_state==='live'?'as it stands':'latest score';
+      return `${f.home_team} ${f.home_score}–${f.away_score} ${f.away_team} — ${status}. Here is what it means for the prediction league.`;
+    }
+    return `${f.home_team} v ${f.away_team} — no score is available yet.`;
+  }
+
   const banks={
     banter:[
       `${scope} has delivered. Some people cooked. Some people absolutely did not. 👀`,
@@ -460,7 +497,6 @@ function mgIntro(s,d){
   if(s.mood==='stir'&&s.tone==='banter')line+=' Nobody hide the receipts.';
   return line;
 }
-
 function mgPerformersSection(s,d){
   const rows=mgTopPerformers(d);
   if(!rows.length)return '';
@@ -473,6 +509,57 @@ function mgPerformersSection(s,d){
   return `${head}\n${body}`;
 }
 
+
+function mgBottomSection(s,d){
+  const rows=mgBottomPerformers(d);
+  if(!rows.length)return '';
+  const n=s.length==='short'?2:s.length==='medium'?3:5;
+  const head=s.tone==='serious'?'Lowest points return':s.tone==='banter'?'🥶 Toughest returns':'Lowest points earners';
+  const body=rows.slice(0,n).map((x,i)=>`${i+1}. ${mgName(x)} — ${mgNum(x.points)} pts${mgNum(x.exacts)?` · ${mgNum(x.exacts)} exact${mgNum(x.exacts)===1?'':'s'}`:''}`).join('\n');
+  return `${head}\n${body}`;
+}
+
+function mgPreMatchSection(s,d){
+  const f=d.base?.selected_fixture;
+  const st=d.base?.prediction_stats||{};
+  const picks=mgArr(d.base?.predictions);
+  const popular=mgArr(d.base?.popular_scores);
+  if(!f)return 'No locked upcoming fixture is available for pre-match analysis.';
+  const total=mgNum(st.picks_count);
+  if(!total)return 'Predictions are locked, but no sealed picks are available to analyse yet.';
+  const h=mgNum(st.home_count),dr=mgNum(st.draw_count),aw=mgNum(st.away_count);
+  const pct=n=>Math.round(n*100/total);
+  const top=popular[0];
+  const lines=[];
+  lines.push(`🔮 *League prediction split*`);
+  lines.push(`${f.home_team}: ${h} (${pct(h)}%) · Draw: ${dr} (${pct(dr)}%) · ${f.away_team}: ${aw} (${pct(aw)}%)`);
+  if(top)lines.push(`Most popular score: *${top.home_score}–${top.away_score}* — ${mgNum(top.picks)} pick${mgNum(top.picks)===1?'':'s'}`);
+  lines.push(`${mgNum(st.unique_scorelines)} different scoreline${mgNum(st.unique_scorelines)===1?'':'s'} across ${total} locked picks.`);
+
+  const groups={H:picks.filter(x=>x.outcome==='H'),D:picks.filter(x=>x.outcome==='D'),A:picks.filter(x=>x.outcome==='A')};
+  const nonEmpty=[['H',h],['D',dr],['A',aw]].filter(x=>x[1]>0).sort((x,y)=>x[1]-y[1]);
+  if(nonEmpty.length){
+    const minority=nonEmpty[0][0];
+    const names=groups[minority].slice(0,s.detail==='high'?6:3).map(mgName);
+    const label=minority==='H'?f.home_team:minority==='A'?f.away_team:'the draw';
+    if(names.length)lines.push(`Minority call — ${label}: ${names.join(', ')}${groups[minority].length>names.length?' + others':''}.`);
+  }
+
+  if(s.detail==='high'){
+    const rare=popular.filter(x=>mgNum(x.picks)===1).slice(0,4);
+    if(rare.length){
+      const bits=[];
+      for(const r of rare){
+        const owner=picks.find(x=>Number(x.home_score)===Number(r.home_score)&&Number(x.away_score)===Number(r.away_score));
+        if(owner)bits.push(`${mgName(owner)} ${r.home_score}–${r.away_score}`);
+      }
+      if(bits.length)lines.push(`One-off calls: ${bits.join(' · ')}`);
+    }
+  }
+
+  if(mgNum(st.missing_count)>0)lines.push(`${mgNum(st.missing_count)} player${mgNum(st.missing_count)===1?' has':'s have'} no locked pick recorded.`);
+  return lines.join('\n');
+}
 function mgMoverSection(s,d){
   const m=mgMovers(d);
   if(!m.up.length&&!m.down.length)return '';
