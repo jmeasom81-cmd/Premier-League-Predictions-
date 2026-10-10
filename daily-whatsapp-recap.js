@@ -201,6 +201,7 @@ function prMessage(d){
  if(d.live)lines.push('🔴 Live results: all points are provisional.');
  const section=(key,head,body)=>{if(prChecked.has(key))lines.push('',head,body)};
  if(!d.number&&!d.games.length)return 'No scheduled Premier League fixtures on '+drDateLong(d.day)+'. Choose another matchday.';
+ if(d.number&&!d.games.length)return '⚽ *Premier League Predictions*\n*'+drName(me)+' — '+drDateLong(d.day)+'*\n\n⏳ '+d.number+' fixture'+(d.number===1?' is':'s are')+' scheduled, but no score has been recorded yet. Daily player statistics will appear once matches have scores.\n\n📲 '+DR_APP;
  section('summary','🏅 *Today*',me.points+' points · '+me.submitted+'/'+d.games.length+' scored fixtures predicted'+(d.remaining?' · '+d.remaining+' still awaiting scores':''));
  section('position','🏆 *Daily position*',drOrdinal(d.rank)+' of '+d.members.length+(d.ties>1?' (joint on points)':'')+' · '+(d.dayBest-me.points)+' behind today’s top score');
  section('scoring','✅ *Scoring picks*',me.correct+'/'+me.submitted+' returned points ('+prPct(me.correct,me.submitted)+')');
@@ -239,7 +240,7 @@ function prRender(){
  '<div class="prField"><label>Recent days with results</label><select data-pr-days><option value="">Choose a date…</option>'+
  d.days.map(x=>'<option value="'+drEsc(x)+'">'+drEsc(drDateShort(x))+'</option>').join('')+'</select></div></div>'+
  '<div class="prCard"><h3>Daily snapshot</h3><div class="prKpis">'+
- [[me.points,'Points'],[me.exacts,'Exacts'],[me.correct+'/'+me.submitted,'Scoring picks'],[drOrdinal(d.rank),'Day rank']].map(x=>'<div><b>'+drEsc(x[0])+'</b><small>'+drEsc(x[1])+'</small></div>').join('')+'</div></div>'+
+ [[me.points,'Points'],[me.exacts,'Exacts'],[me.correct+'/'+me.submitted,'Scoring picks'],[d.games.length?drOrdinal(d.rank):'—','Day rank']].map(x=>'<div><b>'+drEsc(x[0])+'</b><small>'+drEsc(x[1])+'</small></div>').join('')+'</div></div>'+
  '<div class="prCard"><h3>Report length</h3><div class="prChips">'+
  [['quick','⚡ Quick'],['detailed','📊 Detailed'],['custom','⚙️ Custom']].map(x=>'<button type="button" class="prChip'+(prPreset===x[0]?' on':'')+'" data-pr-preset="'+x[0]+'">'+x[1]+'</button>').join('')+
  '</div><h3 style="margin-top:14px">Tone</h3><div class="prChips">'+
