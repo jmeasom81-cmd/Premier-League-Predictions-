@@ -1,4 +1,4 @@
-// OWNER MESSAGE GENERATOR V2
+// OWNER MESSAGE GENERATOR V3
 // Flexible owner-only WhatsApp/Home message generator using real league data.
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -217,33 +217,86 @@ function mgFixtureExactParty(rows){
   return best;
 }
 
-async function mgLoad(scope,day=null){
+async function mgLoad(scope,day=null,fixtureId=null){
   const c=await mgContext();
-  const common=[
-    mgSb.rpc('get_league_history',{p_league_id:c.leagueId,p_limit:200}),
-    mgSb.rpc('get_match_centre_context',{p_league_id:c.leagueId})
-  ];
-  if(scope==='matchday'){
-    common.unshift(mgSb.rpc('get_owner_daily_recap',{p_league_id:c.leagueId,p_day:day||null}));
-  }else if(scope==='matchweek'){
-    common.unshift(mgSb.rpc('get_owner_weekly_review',{p_league_id:c.leagueId}));
+
+  let base={};
+  let history=[];
+  let context={};
+  let scoped=[];
+
+  if(scope==='matchday'||scope==='match'){
+    const scopeRes=await mgSb.rpc('get_owner_message_scope',{
+      p_league_id:c.leagueId,
+      p_day:day||null,
+      p_fixture_id:scope==='match'?(fixtureId||null):null
+    });
+    if(scopeRes.error)throw scopeRes.error;
+    base=scopeRes.data||{};
+
+    const [histRes,ctxRes]=await Promise.all([
+      mgSb.rpc('get_league_history',{p_league_id:c.leagueId,p_limit:200}),
+      mgSb.rpc('get_match_centre_context',{p_league_id:c.leagueId})
+    ]);
+    if(histRes.error)throw histRes.error;
+    if(ctxRes.error)throw ctxRes.error;
+    history=mgArr(histRes.data);
+    context=ctxRes.data||{};
+    scoped=mgArr(base.scored_rows);
+
+    if(scope==='matchday'&&base.selected_date){
+      try{
+        const daily=await mgSb.rpc('get_owner_daily_recap',{
+          p_league_id:c.leagueId,
+          p_day:base.selected_date
+        });
+        if(!daily.error&&daily.data){
+          base={
+            ...daily.data,
+            ...base,
+            biggest_climbers:mgArr(daily.data.biggest_climbers),
+            biggest_falls:mgArr(daily.data.biggest_falls)
+          };
+        }
+      }catch{}
+    }
+  }else if(scope==='prematch'){
+    const [preRes,histRes,ctxRes]=await Promise.all([
+      mgSb.rpc('get_owner_pre_match_analysis',{
+        p_league_id:c.leagueId,
+        p_fixture_id:fixtureId||null
+      }),
+      mgSb.rpc('get_league_history',{p_league_id:c.leagueId,p_limit:200}),
+      mgSb.rpc('get_match_centre_context',{p_league_id:c.leagueId})
+    ]);
+    if(preRes.error)throw preRes.error;
+    if(histRes.error)throw histRes.error;
+    if(ctxRes.error)throw ctxRes.error;
+    base=preRes.data||{};
+    history=mgArr(histRes.data);
+    context=ctxRes.data||{};
+    scoped=[];
   }else{
-    // Weekly review tells us the latest fully completed matchweek.
-    common.unshift(mgSb.rpc('get_owner_weekly_review',{p_league_id:c.leagueId}));
+    const common=[
+      mgSb.rpc('get_owner_weekly_review',{p_league_id:c.leagueId}),
+      mgSb.rpc('get_league_history',{p_league_id:c.leagueId,p_limit:200}),
+      mgSb.rpc('get_match_centre_context',{p_league_id:c.leagueId})
+    ];
+    const results=await Promise.all(common);
+    for(const x of results){if(x?.error)throw x.error}
+    base=results[0].data||{};
+    history=mgArr(results[1].data);
+    context=results[2].data||{};
+    scoped=mgHistoryScope(history,scope,base);
   }
 
-  const results=await Promise.all(common);
-  for(const x of results){if(x?.error)throw x.error}
-  const base=results[0].data||{};
-  const history=mgArr(results[1].data);
-  const context=results[2].data||{};
-  const scoped=mgHistoryScope(history,scope,base);
-
   let changes=null;
-  try{
-    const r=await mgSb.rpc('get_owner_prediction_change_analytics',{p_league_id:c.leagueId});
-    if(!r.error)changes=r.data||{};
-  }catch{}
+  if(scope!=='prematch'){
+    try{
+      const r=await mgSb.rpc('get_owner_prediction_change_analytics',{p_league_id:c.leagueId});
+      if(!r.error)changes=r.data||{};
+    }catch{}
+  }
 
   const near=mgNearMisses(scoped);
   const form=mgRecentForm(scoped);
@@ -251,22 +304,40 @@ async function mgLoad(scope,day=null){
   const sampleMatchweeks=[...new Set(scoped.map(x=>Number(x.matchweek||0)).filter(Boolean))].sort((a,b)=>a-b);
   return {scope,base,history,context,scoped,near,form,exactParty,changes,sampleMatchweeks};
 }
-
 function mgScopeTitle(d){
-  if(d.scope==='matchday')return 'Matchday · '+mgDateLabel(d.base.selected_date);
+  if(d.scope==='prematch'){
+    const f=d.base?.selected_fixture;
+    return f?('Pre-match · '+f.home_team+' v '+f.away_team):'Pre-match prediction analysis';
+  }
+  if(d.scope==='match'){
+    const f=d.base?.selected_fixture;
+    return f?(f.home_team+' v '+f.away_team):'Individual match';
+  }
+  if(d.scope==='matchday')return 'Day so far · '+mgDateLabel(d.base.selected_date);
   if(d.scope==='matchweek')return 'Matchweek '+Number(d.base.matchweek||0);
   const n=d.sampleMatchweeks?.length||0;
-  return `Last ${n||6} completed matchweek${n===1?'':'s'}`;
+  return 'Last '+(n||6)+' completed matchweek'+(n===1?'':'s');
 }
 
 function mgTopPerformers(d){
-  if(d.scope==='matchday')return mgArr(d.base.day_top_five);
+  if(d.scope==='prematch')return [];
+  if(d.scope==='matchday'||d.scope==='match')return mgArr(d.base.day_top_five);
   if(d.scope==='matchweek')return mgArr(d.base.week_top_five);
   return d.form.slice(0,5);
 }
 
+function mgBottomPerformers(d){
+  if(d.scope==='prematch')return [];
+  if(d.scope==='matchday'||d.scope==='match')return mgArr(d.base.day_bottom_five);
+  return [...d.form]
+    .filter(x=>mgNum(x.submitted)>0)
+    .sort((a,b)=>mgNum(a.points)-mgNum(b.points)||mgNum(a.exacts)-mgNum(b.exacts)||mgName(a).localeCompare(mgName(b)))
+    .slice(0,5);
+}
+
 function mgExacts(d){
-  if(d.scope==='matchday')return {
+  if(d.scope==='prematch')return {total:0,stars:[]};
+  if(d.scope==='matchday'||d.scope==='match')return {
     total:mgNum(d.base.day_stats?.total_exacts),
     stars:mgArr(d.base.exact_stars)
   };
@@ -287,18 +358,18 @@ function mgMovers(d){
 }
 
 function mgTable(d){
-  if(d.scope==='matchday')return mgArr(d.base.top_three_after);
+  if(d.scope==='matchday'||d.scope==='match')return mgArr(d.base.top_three_after);
   if(d.scope==='matchweek')return mgArr(d.base.top_three);
   return mgArr(d.context?.standings).slice(0,3);
 }
 
 function mgAverage(d){
-  if(d.scope==='matchday')return mgNum(d.base.day_stats?.average_points);
+  if(d.scope==='prematch')return 0;
+  if(d.scope==='matchday'||d.scope==='match')return mgNum(d.base.day_stats?.average_points);
   if(d.scope==='matchweek')return mgNum(d.base.week_stats?.average_points);
   if(!d.form.length)return 0;
   return Math.round(d.form.reduce((a,x)=>a+mgNum(x.points),0)*10/d.form.length)/10;
 }
-
 function mgSettings(){
   const o=document.querySelector('.mgOverlay');
   const active=key=>o?.querySelector('[data-mg-'+key+'].active')?.dataset['mg'+key[0].toUpperCase()+key.slice(1)]||'';
@@ -313,6 +384,8 @@ function mgSettings(){
     focuses:focuses.length?focuses:['auto'],
     prompt:o.querySelector('[data-mg-prompt]')?.value?.trim()||'',
     table:!!o.querySelector('[data-mg-extra="table"]')?.checked,
+    topEarners:!!o.querySelector('[data-mg-extra="top-earners"]')?.checked,
+    bottomEarners:!!o.querySelector('[data-mg-extra="bottom-earners"]')?.checked,
     random:!!o.querySelector('[data-mg-extra="random"]')?.checked,
     link:!!o.querySelector('[data-mg-extra="link"]')?.checked
   };
