@@ -204,8 +204,8 @@ function prCurrentWeek(weeks){
  return prN(weeks[0]?.matchweek)||1;
 }
 function prPeriodName(d){
- if(d.scope==='week')return 'Matchweek '+d.from+' to date'+(d.remaining===0?' (complete)':'');
- if(d.scope==='range')return 'Matchweeks '+d.from+'–'+d.to+' to date'+(d.remaining===0?' (complete)':'');
+ if(d.scope==='week')return 'Matchweek '+d.from+(d.remaining===0&&!d.live?' — complete':' — so far');
+ if(d.scope==='range')return 'Matchweeks '+d.from+'–'+d.to+(d.remaining===0&&!d.live?' — complete':' — so far');
  return drDateLong(d.day);
 }
 function prWeekOptions(value){
