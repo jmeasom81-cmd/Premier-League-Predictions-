@@ -111,7 +111,7 @@ const prStats=[
 ];
 let prDay='',prPlayer='',prRival='',prData=null,prStyle='friendly',prPreset='detailed',prRequest=0;
 let prScope='day',prWeek=null,prFrom=null,prTo=null,prWeeks=[];
-let prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','podium','rival','streak','best','matches']);
+let prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','podium','rival','streak','best','weeks','matches']);
 const prN=v=>Number.isFinite(Number(v))?Number(v):0;
 const prList=v=>Array.isArray(v)?v:[];
 const prOutcome=(h,a)=>h>a?'H':h<a?'A':'D';
@@ -221,13 +221,18 @@ async function prLoadPeriod(playerId){
  const members=await prMembers();
  const person=members.find(x=>String(x.user_id)===String(playerId))||members[0];
  if(!person)throw Error('No league members found');
- if(!prWeeks.length){
+ const initializingWeeks=!prWeeks.length;
+ if(initializingWeeks){
    const r=await drSb.rpc('get_owner_player_matchweek_period',{p_league_id:drLeagueId,p_from_matchweek:null,p_to_matchweek:null});
    if(r.error)throw r.error;
    prWeeks=prList(r.data?.weeks);
  }
  if(!prWeeks.length)throw Error('No matchweeks are available yet.');
  const allowed=prWeeks.map(x=>prN(x.matchweek));
+ if(initializingWeeks&&prScope==='range'&&prTo===Math.min(...allowed)){
+   prTo=prCurrentWeek(prWeeks);
+   prFrom=Math.max(Math.min(...allowed),prTo-2);
+ }
  if(!allowed.includes(prN(prWeek)))prWeek=prCurrentWeek(prWeeks);
  if(!allowed.includes(prN(prTo)))prTo=prWeek;
  if(!allowed.includes(prN(prFrom)))prFrom=Math.max(Math.min(...allowed),prTo-2);
@@ -425,7 +430,7 @@ async function prOpen(){
  document.body.appendChild(o);document.body.style.overflow='hidden';
  const close=()=>{++prRequest;o.remove();document.body.style.overflow=''};
  o.querySelector('.prClose').onclick=close;o.onclick=e=>{if(e.target===o)close()};
- prPreset='detailed';prStyle='friendly';prRival='';prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','podium','rival','streak','best','matches']);
+ prPreset='detailed';prStyle='friendly';prRival='';prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','podium','rival','streak','best','weeks','matches']);
  await prRefresh(prDay||drTodayUK(),prPlayer);
  if(prScope==='day'&&prData&&prData.number===0&&prData.day===drTodayUK()){
    const latest=prData.days.find(x=>x!==drTodayUK());if(latest)await prRefresh(latest,prPlayer);
