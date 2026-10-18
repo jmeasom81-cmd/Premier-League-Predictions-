@@ -382,7 +382,7 @@ function prRender(){
  '<div class="prField"><label>Choose player</label><select data-pr-player>'+d.members.map(x=>
    '<option value="'+drEsc(x.user_id)+'"'+(String(x.user_id)===String(me.user_id)?' selected':'')+'>'+drEsc((x.badge||'⚽')+' '+drName(x))+'</option>').join('')+'</select></div>'+
  prSelectFields(d)+'</div></div>'+
- '<div class="prNote">'+(d.scope&&d.scope!=='day'?prPeriodName(d)+' · ':'')+d.games.length+' scored matches · '+d.remaining+' awaiting results'+(d.live?' · live points provisional':'')+'</div>'+
+ '<div class="prCard"><div class="prNote">'+(d.scope&&d.scope!=='day'?prPeriodName(d)+' · ':'')+d.games.length+' scored matches · '+d.remaining+' awaiting results'+(d.live?' · live points provisional':'')+'</div>'+
  '<div class="prField"><label>Compare with another player (optional)</label><select data-pr-rival><option value="">No comparison</option>'+
  d.members.filter(x=>String(x.user_id)!==String(me.user_id)).map(x=>'<option value="'+drEsc(x.user_id)+'"'+(String(x.user_id)===String(prRival)?' selected':'')+'>'+drEsc((x.badge||'⚽')+' '+drName(x))+'</option>').join('')+'</select></div>'+
  (d.scope&&d.scope!=='day'?'':'<div class="prField"><label>Recent days with results</label><select data-pr-days><option value="">Choose a date…</option>'+
