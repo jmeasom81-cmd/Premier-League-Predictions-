@@ -122,11 +122,11 @@ function prCSS(){
  const s=document.createElement('style');s.id='player-day-report-css';
  s.textContent=[
  '.prOpen{margin-top:8px;width:100%;background:#4b269d}',
- '.prOverlay{position:fixed;inset:0;z-index:3600;background:#171126aa;display:flex;align-items:flex-end;justify-content:center;padding:8px}',
- '.prShell{width:min(740px,100%);max-height:94dvh;overflow:auto;background:#f7f6fb;border-radius:24px 24px 12px 12px}',
- '.prHead{position:sticky;top:0;z-index:3;padding:15px;background:linear-gradient(120deg,#241153,#4b269d);color:white;display:flex;justify-content:space-between;gap:12px;border-radius:24px 24px 0 0}',
- '.prHead b{font-size:19px}.prHead p{font-size:10px;opacity:.8;margin:5px 0}.prClose{height:40px;width:40px;border:0;border-radius:12px;background:#ffffff26;color:white;font-size:21px}',
- '.prBody{padding:12px}.prCard{padding:12px;margin-bottom:10px;background:white;border:1px solid #e7e4ef;border-radius:15px}',
+ '.prOverlay{position:fixed;inset:0;z-index:3600;background:#171126cc;display:flex;align-items:center;justify-content:center;padding:12px}',
+ '.prShell{width:min(740px,100%);height:min(800px,92dvh);max-height:92dvh;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:#f7f6fb;border-radius:22px;box-shadow:0 20px 70px #08031577}',
+ '.prHead{position:relative;z-index:3;flex:none;padding:15px;background:linear-gradient(120deg,#241153,#4b269d);color:white;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-radius:22px 22px 0 0}',
+ '.prHead b{font-size:19px;line-height:1.3}.prHead p{font-size:11px;opacity:.9;line-height:1.4;margin:5px 0}.prClose{flex:none;min-height:44px;min-width:44px;border:0;border-radius:12px;background:#ffffff29;color:white;font-size:23px;cursor:pointer}',
+ '.prBody{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:12px}.prCard{padding:12px;margin-bottom:10px;background:white;border:1px solid #e7e4ef;border-radius:15px}',
  '.prCard h3{font-size:13px;margin:0 0 9px}.prFields{display:grid;grid-template-columns:1fr 1fr;gap:9px}',
  '.prField label{font-size:10px;font-weight:850;display:block;margin-bottom:5px;color:#665d79}.prField select,.prField input{width:100%;min-width:0;padding:10px 7px;border:1px solid #d8d3e5;border-radius:10px;font-size:12px;background:white;color:#231733}',
  '.prChips{display:flex;gap:6px;flex-wrap:wrap}.prChip{border:1px solid #d8d3e5;background:#f5f3fa;color:#4b337c;border-radius:99px;padding:8px 10px;font-size:10px;font-weight:850}.prChip.on{background:#4b269d;color:white;border-color:#4b269d}',
@@ -135,16 +135,24 @@ function prCSS(){
  '.prText{width:100%;min-height:300px;border:1px solid #d9d2e7;border-radius:12px;padding:10px;font-size:12px;line-height:1.5;resize:vertical;color:#211c2d}',
  '.prActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.prActions button{border:0;border-radius:11px;background:#efecf5;color:#343047;padding:11px;font-size:11px;font-weight:900}.prActions button:last-child{background:#08775c;color:white}',
  '.prNote{font-size:10px;line-height:1.5;color:#797080;margin-top:8px}',
+ '.prLoadState{min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:25px 16px;color:#554e67}.prLoadState b{font-size:15px}.prLoadState span{font-size:12px;line-height:1.5}.prSpinner{width:32px;height:32px;border:3px solid #ddd4f1;border-top-color:#4b269d;border-radius:50%;animation:prSpin 1s linear infinite}@keyframes prSpin{to{transform:rotate(360deg)}}',
+ '@media(max-width:600px){.prOverlay{padding:0;align-items:stretch}.prShell{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.prHead{border-radius:0;padding:14px 15px}.prHead b{font-size:18px}.prBody{padding:12px 12px max(18px,env(safe-area-inset-bottom))}.prFields{grid-template-columns:1fr}.prField select,.prField input{font-size:16px;min-height:44px}.prChip{font-size:12px;min-height:38px}}',
  '@media(max-width:360px){.prOptions{grid-template-columns:1fr}.prKpis b{font-size:14px}}'
  ].join('');
  document.head.appendChild(s);
 }
+function prWithTimeout(promise,label,ms=15000){
+ let timer;
+ return Promise.race([Promise.resolve(promise),new Promise((_,reject)=>{
+   timer=setTimeout(()=>reject(new Error(label+' is taking longer than expected. Please try again.')),ms);
+ })]).finally(()=>clearTimeout(timer));
+}
 async function prMembers(){
- const {data,error}=await drSb.from('league_members').select('user_id,status').eq('league_id',drLeagueId).eq('status','active');
+ const {data,error}=await prWithTimeout(drSb.from('league_members').select('user_id,status').eq('league_id',drLeagueId).eq('status','active'),'Loading league members',12000);
  if(error)throw error;
  const ids=prList(data).map(x=>x.user_id);
  if(!ids.length)return [];
- const {data:profiles,error:ep}=await drSb.from('profiles').select('user_id,display_name,team_name,badge').in('user_id',ids);
+ const {data:profiles,error:ep}=await prWithTimeout(drSb.from('profiles').select('user_id,display_name,team_name,badge').in('user_id',ids),'Loading player profiles',12000);
  if(ep)throw ep;
  const map=new Map(prList(profiles).map(x=>[String(x.user_id),x]));
  return ids.map(id=>({...(map.get(String(id))||{}),user_id:id})).sort((a,b)=>drName(a).localeCompare(drName(b)));
@@ -152,10 +160,9 @@ async function prMembers(){
 async function prLoad(rawDay,playerId){
  if(!await drInitOwner())throw Error('League owner access required');
  const requested=prDayFmt(rawDay);
- const [scope,members,daily]=await Promise.all([
-   drSb.rpc('get_owner_message_scope',{p_league_id:drLeagueId,p_day:requested,p_fixture_id:null}),
-   prMembers(),
-   drSb.rpc('get_owner_daily_recap',{p_league_id:drLeagueId,p_day:requested})
+ const [scope,members]=await Promise.all([
+   prWithTimeout(drSb.rpc('get_owner_message_scope',{p_league_id:drLeagueId,p_day:requested,p_fixture_id:null}),'Loading sealed match results',16000),
+   prMembers()
  ]);
  if(scope.error)throw scope.error;
  const data=scope.data||{},day=data.selected_date||requested;
@@ -193,10 +200,29 @@ async function prLoad(rawDay,playerId){
  const average=scores.length?Math.round(scores.reduce((a,b)=>a+b,0)*10/scores.length)/10:0;
  const number=prN(data.day_total_fixtures??fixtures.length);
  const remaining=Math.max(0,number-games.length);
- const days=prList(daily.data?.available_days).map(x=>x.date).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x));
+ const days=[]; // Optional date history loads after the report is visible.
  return {members,me,leaderboard,day,days:[...new Set([drTodayUK(),day,...days])].sort().reverse(),games,rank,ties,dayBest,average,number,remaining,live:games.some(x=>x.live),updatedAt:new Date().toISOString()};
 }
 
+function prRecentDays(request,report){
+ // Recent dates must not delay the main report. This query is optional.
+ prWithTimeout(drSb.rpc('get_owner_daily_recap',{p_league_id:drLeagueId,p_day:report.day}),'Loading recent match dates',5500)
+ .then(({data,error})=>{
+   if(error||request!==prRequest||!document.querySelector('.prOverlay')||prScope!=='day'||prData!==report)return;
+   const dates=prList(data?.available_days).map(x=>x.date).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x)));
+   report.days=[...new Set([drTodayUK(),report.day,...dates])].sort().reverse();
+   const select=document.querySelector('.prOverlay [data-pr-days]');
+   if(select){
+     const selected=select.value;
+     select.innerHTML='<option value="">Choose a date…</option>'+report.days.map(x=>'<option value="'+drEsc(x)+'">'+drEsc(drDateShort(x))+'</option>').join('');
+     if(report.days.includes(selected))select.value=selected;
+   }
+   if(report.number===0&&report.day===drTodayUK()){
+     const recent=report.days.find(x=>x!==report.day);
+     if(recent)prRefresh(recent,report.me.user_id);
+   }
+ }).catch(e=>console.info('Optional recent player dates unavailable:',e?.message||e));
+}
 function prCurrentWeek(weeks){
  const now=Date.now();
  const started=prList(weeks).filter(x=>x.first_kickoff&&new Date(x.first_kickoff).getTime()<=now);
@@ -223,7 +249,7 @@ async function prLoadPeriod(playerId){
  if(!person)throw Error('No league members found');
  const initializingWeeks=!prWeeks.length;
  if(initializingWeeks){
-   const r=await drSb.rpc('get_owner_player_matchweek_period',{p_league_id:drLeagueId,p_from_matchweek:null,p_to_matchweek:null});
+   const r=await prWithTimeout(drSb.rpc('get_owner_player_matchweek_period',{p_league_id:drLeagueId,p_from_matchweek:null,p_to_matchweek:null}),'Loading matchweek options',16000);
    if(r.error)throw r.error;
    prWeeks=prList(r.data?.weeks);
  }
@@ -238,9 +264,9 @@ async function prLoadPeriod(playerId){
  if(!allowed.includes(prN(prFrom)))prFrom=Math.max(Math.min(...allowed),prTo-2);
  if(prScope==='week'){prFrom=prWeek;prTo=prWeek}
  if(prFrom>prTo)prFrom=prTo;
- const response=await drSb.rpc('get_owner_player_matchweek_period',{
+ const response=await prWithTimeout(drSb.rpc('get_owner_player_matchweek_period',{
    p_league_id:drLeagueId,p_from_matchweek:prFrom,p_to_matchweek:prTo
- });
+ }),'Loading matchweek statistics',16000);
  if(response.error)throw response.error;
  const json=response.data||{};
  prWeeks=prList(json.weeks).length?json.weeks:prWeeks;
@@ -410,15 +436,16 @@ function prRender(){
 async function prRefresh(date,player){
  const el=document.querySelector('.prOverlay .prBody');if(!el)return;
  const request=++prRequest;
- el.innerHTML='<div class="drEmpty">Loading individual league statistics…</div>';
+ el.innerHTML='<div class="prLoadState" role="status" aria-live="polite"><div class="prSpinner" aria-hidden="true"></div><b>Loading player statistics…</b><span>Checking sealed predictions and match results. You can close this screen at any time.</span></div>';
  try{
    const next=prScope==='day'?await prLoad(date,player):await prLoadPeriod(player);
    if(request!==prRequest||!el.isConnected)return;
    prData=next;prDay=next.day;prPlayer=next.me.user_id;prRender();
+   if(prScope==='day')prRecentDays(request,next);
  }catch(e){
    if(request!==prRequest||!el.isConnected)return;
    console.warn('Player daily report:',e);
-   el.innerHTML='<div class="drEmpty">Could not load statistics.<p>'+drEsc(e?.message||String(e))+'</p><button type="button" class="drBtn copy" data-pr-retry>Try again</button></div>';
+   el.innerHTML='<div class="drEmpty" role="alert" style="padding:25px 18px"><b>Player statistics could not load.</b><p>'+drEsc(e?.message||String(e))+'</p><p>The league predictions are unaffected.</p><button type="button" class="drBtn copy" data-pr-retry style="font-size:13px;padding:13px 20px">↻ Try again</button></div>';
    el.querySelector('[data-pr-retry]').onclick=()=>prRefresh(date,player);
  }
 }
@@ -426,15 +453,14 @@ async function prOpen(){
  if(!await drInitOwner()){alert('Individual player reports are available to league admins. If you are an admin, please sign out and back in.');return;}
  document.querySelector('.prOverlay')?.remove();
  const o=document.createElement('div');o.className='prOverlay';
- o.innerHTML='<div class="prShell"><div class="prHead"><div><b>👤 Individual Player Stats</b><p>Daily · matchweek to date · multiple matchweeks · WhatsApp or copy</p></div><button type="button" class="prClose" aria-label="Close">✕</button></div><div class="prBody"></div></div>';
+ o.innerHTML='<div class="prShell" role="dialog" aria-modal="true" aria-label="Individual Player Stats"><div class="prHead"><div><b>👤 Individual Player Stats</b><p>Daily · matchweek to date · multiple matchweeks · WhatsApp or copy</p></div><button type="button" class="prClose" aria-label="Close player statistics">✕</button></div><div class="prBody"></div></div>';
+ const priorOverflow=document.body.style.overflow;
  document.body.appendChild(o);document.body.style.overflow='hidden';
- const close=()=>{++prRequest;o.remove();document.body.style.overflow=''};
+ const close=()=>{++prRequest;o.remove();document.body.style.overflow=priorOverflow};
  o.querySelector('.prClose').onclick=close;o.onclick=e=>{if(e.target===o)close()};
+ o.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
  prPreset='detailed';prStyle='friendly';prRival='';prChecked=new Set(['summary','position','scoring','exact','compare','near','blanks','podium','rival','streak','best','weeks','matches']);
  await prRefresh(prDay||drTodayUK(),prPlayer);
- if(prScope==='day'&&prData&&prData.number===0&&prData.day===drTodayUK()){
-   const latest=prData.days.find(x=>x!==drTodayUK());if(latest)await prRefresh(latest,prPlayer);
- }
 }
 function prInject(){
  const card=document.querySelector('#main .drAdminCard');
