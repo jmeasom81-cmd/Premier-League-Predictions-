@@ -899,10 +899,27 @@ async function mgCopy(){
   mgToast('✓ Message copied');
 }
 
-function mgWhatsApp(){
-  const text=document.querySelector('.mgText')?.value?.trim();if(!text)return;
+async function mgWhatsApp(){
+  const text=document.querySelector('.mgText')?.value?.trim();
+  if(!text)return;
+  const title=document.querySelector('.mgTitleInput')?.value?.trim()||mgLastTitle||'League update';
+  // Open a blank tab synchronously so browsers don't block WhatsApp after
+  // the asynchronous Home save. Never claim WhatsApp itself was sent.
+  const opened=window.open('about:blank','_blank');
+  if(opened)opened.opener=null;
+  try{
+    const c=await mgContext();
+    const {error}=await mgSb.rpc('publish_owner_home_announcement',{
+      p_league_id:c.leagueId,p_title:title,p_body:text,p_source_type:'owner_generator'
+    });
+    if(error)throw error;
+    mgToast('✓ Message saved to Home and league history');
+  }catch(e){
+    mgToast('⚠ Could not add to Home: '+(e.message||'try Publish to Home'));
+  }
   const url='https://wa.me/?text='+encodeURIComponent(text);
-  const w=window.open(url,'_blank','noopener');if(!w)location.href=url;
+  if(opened&&!opened.closed)opened.location.replace(url);
+  else location.href=url;
 }
 
 async function mgPublishHome(){
@@ -920,11 +937,11 @@ async function mgPublishHome(){
       p_source_type:'owner_generator'
     });
     if(error)throw error;
-    mgToast('✓ Added to Home for 7 days');
+    mgToast('✓ Added to Home and message history');
     if(btn)btn.textContent='✓ Added to Home';
   }catch(e){
     mgToast(e.message||'Could not publish to Home');
-    if(btn){btn.disabled=false;btn.textContent='🏠 Add to Home · 7 days'}
+    if(btn){btn.disabled=false;btn.textContent='🏠 Publish to Home'}
   }
 }
 
@@ -1155,10 +1172,10 @@ async function mgOpen(){
         <div class="mgActions">
           <button class="mgBtn regen" data-mg-regen>↻ Generate again</button>
           <button class="mgBtn copy" data-mg-copy>Copy</button>
-          <button class="mgBtn wa" data-mg-wa>📲 WhatsApp</button>
-          <button class="mgBtn home" data-mg-home>🏠 Add to Home · 7 days</button>
+          <button class="mgBtn wa" data-mg-wa>📲 WhatsApp + Home</button>
+          <button class="mgBtn home" data-mg-home>🏠 Publish to Home</button>
         </div>
-        <div class="mgFoot">Publishing to Home is optional and separate from the automatic League Feed. The exact edited message above is what will be published.</div>
+        <div class="mgFoot">WhatsApp + Home publishes your exact edited message to the league feed, then opens WhatsApp to share it. Published reports remain available in the message history until removed.</div>
       </div>
     </div>
   </div>`;
