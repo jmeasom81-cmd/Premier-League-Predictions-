@@ -301,7 +301,7 @@ function lfStory(m,collapsed=false){
     ?'<div class="lfActions"><div class="lfReactions">'+(m.private?'':lfReactionButtons(m))+'</div><div>'+ownerBtns+'</div></div>'
     :'';
 
-  const tag=m.source_type==='owner_generator'&&!m.private?'📣 From James':lfLabel(m);
+  const tag=['owner_generator','daily_recap'].includes(m.source_type)&&!m.private?'📣 From James':lfLabel(m);
   const header='<div class="lfTop"><span class="lfTag">'+lfEsc(tag)+'</span><span class="lfDate">'+lfEsc(lfDate(m.created_at))+'</span></div>'+
     '<div class="lfTitle">'+lfEsc(m.title)+'</div>';
   const body=lfBody(m)+reply+actions;
@@ -323,10 +323,10 @@ function lfFeedCard(){
   // A private message to this member takes precedence. Otherwise, keep
   // the latest owner WhatsApp post prominent even if an automated recap follows.
   const featured=all.find(m=>m.private)
-    ||all.find(m=>m.source_type==='owner_generator')
+    ||all.find(m=>['owner_generator','daily_recap'].includes(m.source_type))
     ||all[0];
   const earlier=all.filter(m=>m.id!==featured.id);
-  const ownerFeatured=featured.source_type==='owner_generator'&&!featured.private;
+  const ownerFeatured=['owner_generator','daily_recap'].includes(featured.source_type)&&!featured.private;
   return '<section class="hfCard lfCard" aria-label="League message feed">'+
     '<div class="lfHead"><h3>📣 '+(ownerFeatured?'Latest from James':'League messages')+'</h3>'+
     '<span>'+all.length+' message'+(all.length===1?'':'s')+'</span></div>'+
