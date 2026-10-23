@@ -31,7 +31,7 @@ function lfCss(){
   s.id='lf-v1-css';
   s.textContent=`
     .hfLeagueFeedSlot{
-      min-width:0;max-width:100%;overflow-x:hidden
+      min-width:0;max-width:100%;overflow-x:clip;overflow-y:visible
     }
     /* The app uses a fixed bottom nav. Leave enough real scroll space below
        Home so an expanded League Feed story can clear that nav completely. */
@@ -62,20 +62,40 @@ function lfCss(){
     .lfStory.private .lfTag{background:#eee8fa;color:#5d399a}
     .lfDate{font-size:7.5px;color:#938d9b;white-space:nowrap}
     .lfTitle{
-      font-size:11.5px;font-weight:950;color:#2f2247;margin-top:6px;line-height:1.3;
+      font-size:14px;font-weight:950;color:#2f2247;margin-top:6px;line-height:1.3;
       min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:normal
     }
     .lfBody{
-      white-space:pre-wrap;font-size:9px;line-height:1.5;color:#5c5664;margin-top:5px;
+      white-space:pre-wrap;font-size:13.5px;line-height:1.65;color:#403a4c;margin-top:9px;
       min-width:0;max-width:100%;box-sizing:border-box;
       overflow-wrap:anywhere;word-break:normal
     }
-    .lfPreview>.lfBody{
-      display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden
+    /* Never truncate the content of a published message. Older stories
+       collapse as a whole, and opening one reveals its entire body. */
+    .lfStoryCollapsed{padding:0;overflow:visible}
+    .lfStoryCollapsed>summary{display:block;padding:13px;cursor:pointer;list-style:none}
+    .lfStoryCollapsed>summary::-webkit-details-marker{display:none}
+    .lfStoryCollapsed[open]>summary{border-bottom:1px solid #ece8f2}
+    .lfStoryCollapsed .lfContents{padding:3px 13px 13px}
+    .lfExpandLabel{display:block;font-size:11px;color:#4b269d;font-weight:850;margin-top:8px}
+    .lfStoryCollapsed[open] .lfExpandLabel{display:none}
+    .lfStoryCollapsed .lfBody{display:block;max-height:none;overflow:visible;-webkit-line-clamp:unset}
+    .lfCard .lfStoryFeature{border:1px solid #d6c5f3;background:#fcfaff}
+    .lfTimelineHead{margin-top:17px;border-top:1px solid #e9e5f1;
+      padding-top:12px;font-size:12px;font-weight:900;color:#39304c}
+    .lfTimelineHelp{display:block;font-size:11px;color:#736b7d;font-weight:500;margin-top:3px}
+    .lfStoryFeature .lfTag{background:#f0eaff;color:#513190}
+    .lfDate{font-size:10px}
+    .lfTag{font-size:9px}
+    @media(max-width:520px){
+      .lfStory{padding:13px 12px}
+      .lfStoryCollapsed{padding:0}
+      .lfStoryCollapsed>summary{padding:12px}
+      .lfStoryCollapsed .lfContents{padding:4px 12px 13px}
+      .lfBody{font-size:13.5px}
+      .lfHead h3{font-size:17px}
     }
-    .lfPreview details{margin-top:5px}
-    .lfPreview summary{font-size:8.2px;color:#5b34a4;font-weight:950;cursor:pointer}
-    .lfPreview details .lfBody{margin-top:6px}
+
     .lfActions{
       display:flex;justify-content:space-between;align-items:center;
       gap:7px;flex-wrap:wrap;margin-top:8px;min-width:0;max-width:100%
@@ -246,11 +266,9 @@ function lfLabel(m){
 }
 
 function lfBody(m){
-  const body=String(m.body||'');
-  if(body.length<=240)return '<div class="lfBody">'+lfEsc(body)+'</div>';
-  const p=body.slice(0,210).trimEnd()+'…';
-  return '<div class="lfPreview"><div class="lfBody">'+lfEsc(p)+'</div>'+
-    '<details><summary>Read full update</summary><div class="lfBody">'+lfEsc(body)+'</div></details></div>';
+  // Preserve every line, emoji and long link in the original WhatsApp text.
+  // A long report is never sliced, clipped or limited to three lines.
+  return '<div class="lfBody">'+lfEsc(String(m.body||''))+'</div>';
 }
 
 function lfReactionButtons(m){
@@ -263,7 +281,7 @@ function lfReactionButtons(m){
   }).join('');
 }
 
-function lfStory(m){
+function lfStory(m,collapsed=false){
   let reply='';
   if(m.reply_enabled){
     reply=m.my_reply
@@ -283,23 +301,42 @@ function lfStory(m){
     ?'<div class="lfActions"><div class="lfReactions">'+(m.private?'':lfReactionButtons(m))+'</div><div>'+ownerBtns+'</div></div>'
     :'';
 
-  return '<article class="lfStory '+(m.private?'private':'')+'" data-lf-story="'+lfEsc(m.id)+'" data-lf-public="'+(m.private?'0':'1')+'">'+
-    '<div class="lfTop"><span class="lfTag">'+lfEsc(lfLabel(m))+'</span><span class="lfDate">'+lfEsc(lfDate(m.created_at))+'</span></div>'+
-    '<div class="lfTitle">'+lfEsc(m.title)+'</div>'+lfBody(m)+reply+actions+'</article>';
+  const tag=m.source_type==='owner_generator'&&!m.private?'📣 From James':lfLabel(m);
+  const header='<div class="lfTop"><span class="lfTag">'+lfEsc(tag)+'</span><span class="lfDate">'+lfEsc(lfDate(m.created_at))+'</span></div>'+
+    '<div class="lfTitle">'+lfEsc(m.title)+'</div>';
+  const body=lfBody(m)+reply+actions;
+  const props='data-lf-story="'+lfEsc(m.id)+'" data-lf-public="'+(m.private?'0':'1')+'"';
+  const classes='lfStory '+(m.private?'private ':'')+(collapsed?'lfStoryCollapsed':'lfStoryFeature');
+
+  if(collapsed){
+    return '<details class="'+classes+'" '+props+'>'+
+      '<summary>'+header+'<span class="lfExpandLabel">Read full message ↓</span></summary>'+
+      '<div class="lfContents">'+body+'</div></details>';
+  }
+  return '<article class="'+classes+'" '+props+'>'+header+body+'</article>';
 }
 
 function lfFeedCard(){
   if(!lfMessages.length)return '';
-  const priv=lfMessages.filter(x=>x.private);
-  const pub=lfMessages.filter(x=>!x.private);
-  const latest=pub.slice(0,2);
-  const older=pub.slice(2);
-  return '<div class="hfCard lfCard">'+
-    '<div class="lfHead"><h3>🗞️ League Feed</h3><span>'+(pub.length?pub.length+' update'+(pub.length===1?'':'s')+' · 7 days':'Private messages')+'</span></div>'+
-    priv.map(lfStory).join('')+
-    latest.map(lfStory).join('')+
-    (older.length?'<details class="lfOlder"><summary>Earlier updates ('+older.length+')</summary>'+older.map(lfStory).join('')+'</details>':'')+
-    '</div>';
+  const all=[...lfMessages].sort((x,y)=>
+    new Date(y.created_at).getTime()-new Date(x.created_at).getTime());
+  // A private message to this member takes precedence. Otherwise, keep
+  // the latest owner WhatsApp post prominent even if an automated recap follows.
+  const featured=all.find(m=>m.private)
+    ||all.find(m=>m.source_type==='owner_generator')
+    ||all[0];
+  const earlier=all.filter(m=>m.id!==featured.id);
+  const ownerFeatured=featured.source_type==='owner_generator'&&!featured.private;
+  return '<section class="hfCard lfCard" aria-label="League message feed">'+
+    '<div class="lfHead"><h3>📣 '+(ownerFeatured?'Latest from James':'League messages')+'</h3>'+
+    '<span>'+all.length+' message'+(all.length===1?'':'s')+'</span></div>'+
+    lfStory(featured,false)+
+    (earlier.length
+      ?'<div class="lfTimelineHead">🕘 More league updates'+
+        '<span class="lfTimelineHelp">Newest first · scroll down and tap any message to read every word</span></div>'+
+        earlier.map(m=>lfStory(m,true)).join('')
+      :'')+
+    '</section>';
 }
 
 function lfRepliesCard(){
@@ -359,23 +396,16 @@ function lfInject(){
   }
 
   const scrollY=window.scrollY;
-  const openStories=[...slot.querySelectorAll('.lfStory details[open]')]
-    .map(d=>d.closest('.lfStory')?.dataset.lfStory)
-    .filter(Boolean);
-  const olderOpen=!!slot.querySelector('.lfOlder[open]');
+  const openStories=[...slot.querySelectorAll('.lfStoryCollapsed[open]')]
+    .map(d=>d.dataset.lfStory).filter(Boolean);
 
   slot.innerHTML=lfFeedCard()+lfRepliesCard();
   slot.dataset.lfSignature=signature;
 
-  if(olderOpen){
-    const older=slot.querySelector('.lfOlder');
-    if(older)older.open=true;
-  }
   for(const id of openStories){
-    const story=[...slot.querySelectorAll('.lfStory')]
+    const story=[...slot.querySelectorAll('.lfStoryCollapsed')]
       .find(x=>x.dataset.lfStory===id);
-    const details=story?.querySelector('details');
-    if(details)details.open=true;
+    if(story)story.open=true;
   }
 
   lfWire();
