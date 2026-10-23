@@ -745,7 +745,8 @@ function sfFindStatsHeader(){
 function sfPrepareHeader(card){
   if(!card)return;
   const notes=card.querySelectorAll('.notice');
-  if(notes[0])notes[0].innerHTML='Your season first. Switch to <b>League Stats</b> for leaders, prediction personalities, club insights and the stories behind the points.';
+  const intro='Your season first. Switch to <b>League Stats</b> for leaders, prediction personalities, club insights and the stories behind the points.';
+  if(notes[0]&&notes[0].innerHTML!==intro)notes[0].innerHTML=intro;
   const unlock=card.querySelector('.unlockRow');
   if(unlock)unlock.style.display='none';
   if(notes[1])notes[1].style.display='none';
