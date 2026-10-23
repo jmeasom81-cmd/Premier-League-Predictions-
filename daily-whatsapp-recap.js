@@ -83,9 +83,29 @@ async function drRender(day=null){
       <div class="drPanel"><div class="drPanelHead"><h2>League movement</h2><span>Before day → after day</span></div>${drMoversHtml(d)}</div>
       <div class="drPanel"><div class="drPanelHead"><h2>Today's results</h2><span>${fixtures} matches</span></div>${drFixturesHtml(d)}</div>
       <div class="drPanel"><div class="drPanelHead"><h2>Message style</h2><span>Edit afterwards if you want</span></div><div class="drStyles"><button type="button" class="drStyleBtn active" data-dr-style="friendly">🙂 Friendly</button><button type="button" class="drStyleBtn" data-dr-style="short">⚡ Short</button><button type="button" class="drStyleBtn" data-dr-style="banter">😄 League banter</button></div></div>
-      <div class="drPanel"><div class="drPanelHead"><h2>WhatsApp daily recap</h2><span>Ready to edit/send</span></div><textarea class="drText" aria-label="Generated daily WhatsApp recap">${drEsc(drBuildMessage(d,'friendly'))}</textarea><div class="drActions"><button type="button" class="drBtn copy" data-dr-copy>Copy recap</button><button type="button" class="drBtn whatsapp" data-dr-whatsapp>📲 Open WhatsApp</button></div></div>
+      <div class="drPanel"><div class="drPanelHead"><h2>WhatsApp daily recap</h2><span>Ready to edit/send</span></div><textarea class="drText" aria-label="Generated daily WhatsApp recap">${drEsc(drBuildMessage(d,'friendly'))}</textarea><div class="drActions"><button type="button" class="drBtn copy" data-dr-copy>Copy recap</button><button type="button" class="drBtn whatsapp" data-dr-whatsapp>📲 WhatsApp + Home</button></div></div>
       <div class="drFoot">Nothing is sent automatically. Daily performance uses sealed predictions and completed results for the selected UK calendar day. AI is excluded. You can edit the message before opening WhatsApp.</div>`;
-    body.querySelector('[data-dr-day]')?.addEventListener('change',e=>drRender(e.target.value));body.querySelectorAll('[data-dr-style]').forEach(b=>b.addEventListener('click',()=>drApplyStyle(b.dataset.drStyle)));body.querySelector('[data-dr-copy]')?.addEventListener('click',e=>drCopy(body.querySelector('.drText')?.value||'',e.currentTarget));body.querySelector('[data-dr-whatsapp]')?.addEventListener('click',()=>{const message=body.querySelector('.drText')?.value?.trim();if(!message)return;const url=`https://wa.me/?text=${encodeURIComponent(message)}`;const w=window.open(url,'_blank','noopener');if(!w)location.href=url});
+    body.querySelector('[data-dr-day]')?.addEventListener('change',e=>drRender(e.target.value));body.querySelectorAll('[data-dr-style]').forEach(b=>b.addEventListener('click',()=>drApplyStyle(b.dataset.drStyle)));body.querySelector('[data-dr-copy]')?.addEventListener('click',e=>drCopy(body.querySelector('.drText')?.value||'',e.currentTarget));body.querySelector('[data-dr-whatsapp]')?.addEventListener('click',async()=>{
+    const message=body.querySelector('.drText')?.value?.trim();
+    if(!message)return;
+    const day=body.querySelector('[data-dr-day]')?.value||drTodayUK();
+    const title='📣 '+drDateLong(day)+' · Day recap';
+    const opened=window.open('about:blank','_blank');
+    if(opened)opened.opener=null;
+    const foot=body.querySelector('.drFoot');
+    try{
+      const {error}=await drSb.rpc('publish_owner_home_announcement',{
+        p_league_id:drLeagueId,p_title:title,p_body:message,p_source_type:'owner_generator'
+      });
+      if(error)throw error;
+      if(foot)foot.textContent='✓ This edited report is now on the league homepage and in its history. WhatsApp sharing is opening.';
+    }catch(e){
+      if(foot)foot.textContent='⚠ WhatsApp will open, but saving to Home failed: '+(e.message||'Please try again');
+    }
+    const url='https://wa.me/?text='+encodeURIComponent(message);
+    if(opened&&!opened.closed)opened.location.replace(url);
+    else location.href=url;
+  });
   }catch(e){console.warn('Daily recap:',e);body.innerHTML=`<div class="drEmpty"><b>Couldn’t build the daily recap.</b><br>${drEsc(e.message||String(e))}</div>`}
 }
 
