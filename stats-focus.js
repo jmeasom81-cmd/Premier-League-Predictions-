@@ -720,6 +720,15 @@ function sfLAData(packs){
  });
  return {people,weeks,rows,complete};
 }
+function sfLAImprovement(player,completedWeeks){
+ // Require a meaningful historic baseline: the last four completed matchweeks
+ // versus every completed matchweek in this league, including those same four.
+ if(!Array.isArray(completedWeeks)||completedWeeks.length<5)return null;
+ const byWeek=new Map((player.matchweeks||[]).map(w=>[sfLAN(w.matchweek),sfLAN(w.points)]));
+ const season=completedWeeks.reduce((sum,w)=>sum+(byWeek.get(w)||0),0)/completedWeeks.length;
+ const recent=completedWeeks.slice(-4).reduce((sum,w)=>sum+(byWeek.get(w)||0),0)/4;
+ return {recent,season,improvement:recent-season};
+}
 function sfLACards(data){
  const players=data.people,recent=data.weeks.slice(-3);
  const categories=[
@@ -729,21 +738,30 @@ function sfLACards(data){
    qualify:p=>sfLAN(p.predictions_scored)>=10,format:v=>sfLAOne(v)+'%'},
   {icon:'🥇',title:'Matchweek champion',desc:'Most weekly wins',score:p=>sfLAN(p.matchweek_wins),format:v=>v+' wins'},
   {icon:'🔥',title:'Best recent form',desc:'Last '+recent.length+' completed matchweeks',score:p=>(p.matchweeks||[]).filter(w=>recent.includes(sfLAN(w.matchweek))).reduce((a,w)=>a+sfLAN(w.points),0),format:v=>v+' pts',ready:recent.length>0},
-  {icon:'📈',title:'Biggest climber',desc:'First to latest completed matchweek',score:p=>{
-    const a=[...(p.matchweeks||[])].filter(w=>sfLAN(w.league_position)>0).sort((x,y)=>sfLAN(x.matchweek)-sfLAN(y.matchweek));
-    return a.length>1?sfLAN(a[0].league_position)-sfLAN(a[a.length-1].league_position):null},
-    format:v=>sfLASign(v)+' places',ready:data.weeks.length>1}
+  {icon:'📈',title:'Most improved',desc:'Last 4 MW average vs full-season average',
+    qualify:p=>(sfLAImprovement(p,data.weeks)?.improvement??0)>0,
+    score:p=>sfLAImprovement(p,data.weeks)?.improvement??null,
+    format:v=>'+'+v.toFixed(2)+' pts/MW',
+    detail:p=>{
+      const result=sfLAImprovement(p,data.weeks);
+      return result?'Last 4: '+result.recent.toFixed(2)+' · season: '+result.season.toFixed(2):'';
+    },ready:data.weeks.length>=5}
  ];
  return '<div class="sfLACards">'+categories.map(cat=>{
    let eligible=players.filter(p=>!cat.qualify||cat.qualify(p)),note=cat.desc;
-   if(cat.qualify&&!eligible.length){eligible=players.filter(p=>sfLAN(p.predictions_scored)>0);note='Early-season rate (fewer than 10 picks)'}
+   if(cat.qualify&&!eligible.length&&cat.title==='Most reliable'){
+     eligible=players.filter(p=>sfLAN(p.predictions_scored)>0);
+     note='Early-season rate (fewer than 10 picks)';
+   }
    const ranked=eligible.map(p=>({...p,metric:cat.score(p)})).filter(p=>p.metric!=null&&Number.isFinite(p.metric))
       .sort((a,b)=>b.metric-a.metric||sfLAN(b.points)-sfLAN(a.points)||sfName(a).localeCompare(sfName(b))).slice(0,3);
    return '<div class="sfLAward"><div class="sfLAwardTitle">'+cat.icon+' <strong>'+sfEsc(cat.title)+'</strong></div>'+
     '<p>'+sfEsc(note)+'</p>'+
     (cat.ready===false||!ranked.length?'<div class="sfLNote">Awaiting enough completed matchweeks</div>':
     ranked.map((p,i)=>'<div class="sfLAwardLine'+(i===0?' champion':'')+'">'+
-      '<span>'+['🥇','🥈','🥉'][i]+'</span><b>'+sfEsc(sfName(p))+'</b><strong>'+sfEsc(cat.format(p.metric))+'</strong></div>').join(''))+
+      '<span>'+['🥇','🥈','🥉'][i]+'</span><div class="sfLANameBlock"><b>'+sfEsc(sfName(p))+'</b>'+
+      (cat.detail?'<small>'+sfEsc(cat.detail(p))+'</small>':'')+
+      '</div><strong>'+sfEsc(cat.format(p.metric))+'</strong></div>').join(''))+
     '</div>';
  }).join('')+'</div>';
 }
@@ -816,6 +834,8 @@ function sfLAStyle(){
  '.sfLAwardLine.champion{background:#f2edfa;border:1px solid #e7daf7;border-radius:10px;padding:8px 5px;margin-bottom:3px}',
  '.sfLAwardLine>span{font-size:10px}.sfLAwardLine>b{flex:1;min-width:0;font-size:9.5px;color:#4e4662;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
  '.sfLAwardLine.champion>b{color:#241153}.sfLAwardLine>strong{font-size:9.5px;white-space:nowrap;color:#241153}',
+ '.sfLANameBlock{flex:1;min-width:0}.sfLANameBlock>b{display:block;font-size:9.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4e4662}.sfLAwardLine.champion .sfLANameBlock>b{color:#241153}.sfLANameBlock>small{display:block;font-size:8.5px;color:#827a92;line-height:1.2;margin-top:3px;white-space:normal}',
+ '.sfLAwardLine:has(.sfLANameBlock small){align-items:center}.sfLAwardLine:has(.sfLANameBlock small)>strong{font-size:8.8px}',
  '.sfLAPresets{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.sfLAPresets button{border:1px solid #ded8e9;border-radius:99px;background:#f5f2fb;color:#4e397b;font-size:10px;font-weight:900;padding:8px 10px}',
  '.sfLAPresets button.on{background:#4b269d;color:white;border-color:#4b269d}',
  '.sfLAChooser{background:#faf9fd;border:1px solid #e7e2ee;border-radius:12px;margin:10px 0}.sfLAChooser summary{cursor:pointer;padding:12px;font-size:11px;font-weight:900;color:#4b269d;list-style:none}',
