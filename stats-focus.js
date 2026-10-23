@@ -622,6 +622,254 @@ function sfDramaSummary(d){
   return `<div class="sfCard"><div class="sfHead"><h3>🎭 Fine margins</h3><span>The stories behind the points</span></div><div class="sfDramaGrid"><div class="sfDrama bad"><h4>💔 What could have been</h4><p>Changed picks, late heartbreak and one-goal near misses.</p><b class="big">${sfNum(bad.one_goal_from_exact_count)}</b><p>predictions one goal from turning 1 point into an exact 3.</p></div><div class="sfDrama good"><h4>🔮 Lucky or psychic?</h4><p>Inspired changes, late rescues and calls nailed from the start.</p><b class="big">${sfNum(goodChanges.length)+sfNum(goodLate.length)}</b><p>recorded decisions or late swings that gained points.</p></div></div><details class="sfDetails"><summary>See fine-margin stories</summary><div class="sfMiniTitle">Regrets</div>${badChanges.slice(0,2).map(x=>`<div class="sfRow"><span><b>${sfEsc(x.display_name||x.team_name||'Player')}</b><small>Changed ${sfEsc(x.before)} → ${sfEsc(x.after)} · ${sfEsc(x.fixture)}</small></span><span class="sfValue">−${sfEsc(x.points_lost||0)} pt</span></div>`).join('')||'<div class="sfEmpty">No costly completed changes yet.</div>'}${badLate.slice(0,2).map(x=>`<div class="sfRow"><span><b>${sfEsc(x.display_name||x.team_name||'Player')}</b><small>${sfEsc(x.minute)}\' late goal · ${sfEsc(x.fixture)}</small></span><span class="sfValue">−${sfEsc(x.points_lost||0)} pt</span></div>`).join('')}<div class="sfMiniTitle">Inspired</div>${goodChanges.slice(0,2).map(x=>`<div class="sfRow"><span><b>${sfEsc(x.display_name||x.team_name||'Player')}</b><small>Changed ${sfEsc(x.before)} → ${sfEsc(x.after)} · ${sfEsc(x.fixture)}</small></span><span class="sfValue">+${sfEsc(x.points_gained||0)} pt</span></div>`).join('')||'<div class="sfEmpty">No point-winning completed changes yet.</div>'}${goodLate.slice(0,2).map(x=>`<div class="sfRow"><span><b>${sfEsc(x.display_name||x.team_name||'Player')}</b><small>${sfEsc(x.minute)}\' late goal · ${sfEsc(x.fixture)}</small></span><span class="sfValue">+${sfEsc(x.points_gained||0)} pt</span></div>`).join('')}${topFirst?`<div class="sfStory">🎯 <b>${sfEsc(topFirst.display_name||topFirst.team_name||'Player')}</b> leads “called it from the start” with <b>${sfEsc(topFirst.exact_from_first_save||0)} exacts</b>.</div>`:''}</details></div>`;
 }
 
+
+// League season awards and all-member weekly breakdown; uses existing sealed evidence.
+const sfLAColumns=[
+ ['points','Group pts','Core'],['average','Avg pts','Core'],['exacts','Exacts','Core'],
+ ['top','Weekly leader','Core'],['fixtures','Fixtures','Core'],['accuracy','Scoring %','Core'],
+ ['max','Best points','Rankings'],['min','Lowest points','Rankings'],['spread','Points gap','Rankings'],
+ ['climbers','Climbers','Rankings'],['fallers','Fallers','Rankings'],
+ ['picks','Picks made','Predictions'],['misses','Missed picks','Predictions'],['zeros','Zero scores','Predictions'],
+ ['scoring','Scoring picks','Accuracy'],['outcomes','1-pointers','Accuracy'],
+ ['exactpct','Exact %','Accuracy'],['ptsper','Pts / pick','Accuracy'],
+ ['nearmiss','Near exacts','Accuracy'],['predgoals','Predicted goals','Goal calls'],
+ ['realgoals','Actual goals','Goal calls'],['bias','Goal bias','Goal calls']
+];
+const sfLAPresets={
+ basic:['points','average','exacts','top','fixtures','accuracy'],
+ ranking:['points','average','top','max','min','spread','climbers','fallers'],
+ accuracy:['points','picks','scoring','accuracy','exacts','exactpct','zeros','misses','nearmiss'],
+ all:sfLAColumns.map(x=>x[0])
+};
+let sfLASelected=null,sfLAPrefKey='',sfLAGood=true,sfLABad=true;
+const sfLAN=n=>Number.isFinite(Number(n))?Number(n):0;
+const sfLAOne=n=>Math.round(n*10)/10;
+const sfLAPct=(a,b)=>b?sfLAOne(a*100/b)+'%':'—';
+const sfLASign=n=>(n>0?'+':'')+sfLAOne(n);
+function sfLAPrefs(){
+ const key=String(sfCtx?.leagueId||'league');
+ if(sfLAPrefKey===key&&sfLASelected)return;
+ sfLAPrefKey=key;
+ let saved=null;try{saved=JSON.parse(localStorage.getItem('plp-league-mw:'+key)||'null')}catch{}
+ const known=new Set(sfLAColumns.map(x=>x[0]));
+ sfLASelected=new Set(Array.isArray(saved?.cols)&&saved.cols.some(x=>known.has(x))
+  ?saved.cols.filter(x=>known.has(x)):sfLAPresets.basic);
+ sfLAGood=saved?.good!==false;sfLABad=saved?.bad!==false;
+}
+function sfLASave(){
+ try{localStorage.setItem('plp-league-mw:'+sfLAPrefKey,JSON.stringify({
+  cols:[...sfLASelected],good:sfLAGood,bad:sfLABad}))}catch{}
+}
+function sfLAData(packs){
+ const people=sfProfiles?.players||[];
+ const weeks=[...new Set(people.flatMap(p=>(p.matchweeks||[]).map(w=>sfLAN(w.matchweek)).filter(Boolean)))].sort((a,b)=>a-b);
+ const evidenceByPlayer=new Map(packs.map(pack=>[String(pack.player?.user_id),pack.evidence?.all_fixtures]));
+ const complete=people.length>0&&people.every(p=>Array.isArray(evidenceByPlayer.get(String(p.user_id))));
+ const byWeek=new Map(weeks.map(w=>[w,[]]));
+ if(complete)for(const p of people)for(const f of evidenceByPlayer.get(String(p.user_id))){
+   const week=sfLAN(f.matchweek);if(byWeek.has(week))byWeek.get(week).push({...f,user_id:p.user_id});
+ }
+ let prev=null;
+ const rows=weeks.map(week=>{
+   const members=people.map(p=>{
+     const w=(p.matchweeks||[]).find(x=>sfLAN(x.matchweek)===week)||{};
+     return {...p,roundPts:sfLAN(w.points),roundExacts:sfLAN(w.exacts),
+       roundOutcomes:sfLAN(w.outcomes),roundRank:sfLAN(w.weekly_position),leagueRank:sfLAN(w.league_position)};
+   });
+   const rank=[...members].sort((a,b)=>b.roundPts-a.roundPts||b.roundExacts-a.roundExacts||b.roundOutcomes-a.roundOutcomes||sfName(a).localeCompare(sfName(b)));
+   const poorest=[...rank].reverse();
+   const movement=members.map(p=>({...p,delta:(prev?.has(String(p.user_id))&&p.leagueRank>0)?
+      prev.get(String(p.user_id))-p.leagueRank:null}));
+   prev=new Map(members.map(p=>[String(p.user_id),p.leagueRank]));
+   const climbers=movement.filter(p=>p.delta>0).sort((a,b)=>b.delta-a.delta||b.roundPts-a.roundPts);
+   const fallers=movement.filter(p=>p.delta<0).sort((a,b)=>a.delta-b.delta||a.roundPts-b.roundPts);
+   const all=byWeek.get(week)||[],picks=all.filter(f=>f.has_prediction===true);
+   const exact=picks.filter(f=>sfLAN(f.points)===3),scoring=picks.filter(f=>sfLAN(f.points)>0);
+   const misses=all.filter(f=>f.has_prediction!==true);
+   const fixtures=new Map();
+   for(const f of all){
+     const key=String(f.fixture_id||week+'|'+f.home_team+'|'+f.away_team);
+     if(!fixtures.has(key))fixtures.set(key,{key,name:(f.home_team||'Home')+' v '+(f.away_team||'Away'),score:f.actual_home!=null&&f.actual_away!=null?sfLAN(f.actual_home)+'–'+sfLAN(f.actual_away):'',picks:0,scoring:0,exacts:0});
+     const fixture=fixtures.get(key);
+     if(f.has_prediction===true){fixture.picks++;if(sfLAN(f.points)>0)fixture.scoring++;if(sfLAN(f.points)===3)fixture.exacts++}
+   }
+   const fixtureList=[...fixtures.values()];
+   const hardest=fixtureList.filter(x=>x.picks>=2).sort((a,b)=>a.scoring/a.picks-b.scoring/b.picks||a.exacts-b.exacts)[0];
+   const bestExact=fixtureList.filter(x=>x.picks>0).sort((a,b)=>b.exacts-a.exacts)[0];
+   const near=picks.filter(f=>Math.abs(sfLAN(f.predicted_home)-sfLAN(f.actual_home))+Math.abs(sfLAN(f.predicted_away)-sfLAN(f.actual_away))===1).length;
+   const predgoals=picks.reduce((a,f)=>a+sfLAN(f.predicted_home)+sfLAN(f.predicted_away),0);
+   const realgoals=picks.reduce((a,f)=>a+sfLAN(f.actual_home)+sfLAN(f.actual_away),0);
+   const total=members.reduce((a,p)=>a+p.roundPts,0);
+   const avg=members.length?total/members.length:0;
+   const max=rank[0]?.roundPts??0,min=poorest[0]?.roundPts??0;
+   return {week,members,rank,poorest,climbers,fallers,hardest,bestExact,
+     total,avg,misses:misses.length,zeros:picks.length-scoring.length,complete,
+     values:{
+       points:total,average:sfLAOne(avg),exacts:complete?exact.length:members.reduce((a,p)=>a+p.roundExacts,0),
+       top:rank[0]?sfName(rank[0]):'—',fixtures:complete?fixtureList.length:'—',
+       accuracy:complete?sfLAPct(scoring.length,picks.length):'—',
+       max,min,spread:max-min,climbers:climbers.length,fallers:fallers.length,
+       picks:complete?picks.length:'—',misses:complete?misses.length:'—',zeros:complete?picks.length-scoring.length:'—',
+       scoring:complete?scoring.length:'—',outcomes:complete?scoring.length-exact.length:'—',
+       exactpct:complete?sfLAPct(exact.length,picks.length):'—',
+       ptsper:complete&&picks.length?sfLAOne(total/picks.length):'—',nearmiss:complete?near:'—',
+       predgoals:complete?predgoals:'—',realgoals:complete?realgoals:'—',
+       bias:complete?sfLASign(predgoals-realgoals):'—'
+     }
+   };
+ });
+ return {people,weeks,rows,complete};
+}
+function sfLACards(data){
+ const players=data.people,recent=data.weeks.slice(-3);
+ const categories=[
+  {icon:'🏆',title:'Overall leader',desc:'Most season points',score:p=>sfLAN(p.points),format:v=>v+' pts'},
+  {icon:'🎯',title:'Exact-score king',desc:'Most perfect scorelines',score:p=>sfLAN(p.exacts),format:v=>v+' exacts'},
+  {icon:'✅',title:'Most reliable',desc:'Scoring rate · minimum 10 picks',score:p=>sfLAN(p.scoring_pct),
+   qualify:p=>sfLAN(p.predictions_scored)>=10,format:v=>sfLAOne(v)+'%'},
+  {icon:'🥇',title:'Matchweek champion',desc:'Most weekly wins',score:p=>sfLAN(p.matchweek_wins),format:v=>v+' wins'},
+  {icon:'🔥',title:'Best recent form',desc:'Last '+recent.length+' completed matchweeks',score:p=>(p.matchweeks||[]).filter(w=>recent.includes(sfLAN(w.matchweek))).reduce((a,w)=>a+sfLAN(w.points),0),format:v=>v+' pts',ready:recent.length>0},
+  {icon:'📈',title:'Biggest climber',desc:'First to latest completed matchweek',score:p=>{
+    const a=[...(p.matchweeks||[])].filter(w=>sfLAN(w.league_position)>0).sort((x,y)=>sfLAN(x.matchweek)-sfLAN(y.matchweek));
+    return a.length>1?sfLAN(a[0].league_position)-sfLAN(a[a.length-1].league_position):null},
+    format:v=>sfLASign(v)+' places',ready:data.weeks.length>1}
+ ];
+ return '<div class="sfLACards">'+categories.map(cat=>{
+   let eligible=players.filter(p=>!cat.qualify||cat.qualify(p)),note=cat.desc;
+   if(cat.qualify&&!eligible.length){eligible=players.filter(p=>sfLAN(p.predictions_scored)>0);note='Early-season rate (fewer than 10 picks)'}
+   const ranked=eligible.map(p=>({...p,metric:cat.score(p)})).filter(p=>p.metric!=null&&Number.isFinite(p.metric))
+      .sort((a,b)=>b.metric-a.metric||sfLAN(b.points)-sfLAN(a.points)||sfName(a).localeCompare(sfName(b))).slice(0,3);
+   return '<div class="sfLAward"><div class="sfLAwardTitle">'+cat.icon+' <strong>'+sfEsc(cat.title)+'</strong></div>'+
+    '<p>'+sfEsc(note)+'</p>'+
+    (cat.ready===false||!ranked.length?'<div class="sfLNote">Awaiting enough completed matchweeks</div>':
+    ranked.map((p,i)=>'<div class="sfLAwardLine'+(i===0?' champion':'')+'">'+
+      '<span>'+['🥇','🥈','🥉'][i]+'</span><b>'+sfEsc(sfName(p))+'</b><strong>'+sfEsc(cat.format(p.metric))+'</strong></div>').join(''))+
+    '</div>';
+ }).join('')+'</div>';
+}
+function sfLATable(data){
+ if(!data.rows.length)return '<div class="sfEmpty">Weekly breakdown will begin after the first completed matchweek.</div>';
+ const cols=sfLAColumns.filter(c=>sfLASelected.has(c[0]));
+ return '<div class="sfLAScroll" tabindex="0" role="region" aria-label="Scroll horizontally through weekly league statistics">'+
+ '<table class="sfLATable"><thead><tr><th scope="col" class="sfLAFirst">MW</th>'+
+ cols.map(c=>'<th scope="col">'+sfEsc(c[1])+'</th>').join('')+'</tr></thead><tbody>'+
+ data.rows.map(row=>'<tr><th scope="row" class="sfLAFirst">MW'+row.week+'</th>'+
+ cols.map(c=>'<td>'+sfEsc(row.values[c[0]]??'—')+'</td>').join('')+'</tr>').join('')+
+ '</tbody></table></div><p class="sfLNote">Scroll sideways to see more columns. Figures use fully completed matchweeks only.</p>';
+}
+function sfLARecords(data){
+ if(!data.rows.length)return '<div class="sfEmpty">Weekly records start when the first matchweek is completed.</div>';
+ if(!sfLAGood&&!sfLABad)return '<div class="sfEmpty">Switch Good records or Bad records on to see the weekly stories.</div>';
+ return [...data.rows].reverse().map(w=>{
+   const top=w.rank[0],worst=w.poorest.slice(0,3);
+   const tied=w.rank.filter(x=>x.roundPts===top?.roundPts&&x.roundExacts===top?.roundExacts&&x.roundOutcomes===top?.roundOutcomes);
+   const exactKing=[...w.members].sort((a,b)=>b.roundExacts-a.roundExacts||b.roundPts-a.roundPts)[0];
+   return '<details class="sfLAWeek" data-sfla-week="'+w.week+'"><summary><span><b>MW'+w.week+'</b><small>'+sfLAOne(w.avg)+' league avg · '+w.total+' group pts</small></span>'+
+     '<strong>'+sfEsc(top?.roundPts??0)+' best pts ⌄</strong></summary><div class="sfLAStory">'+
+     (sfLAGood?'<div class="sfLAStoryBox"><b>🏅 The good</b>'+
+       '<p><strong>Weekly champion:</strong> '+sfEsc(tied.map(sfName).join(', '))+' · '+(top?.roundPts??0)+' pts</p>'+
+       '<p><strong>Top three:</strong> '+w.rank.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+sfEsc(sfName(p))+' ('+p.roundPts+' pts)').join(' · ')+'</p>'+
+       '<p><strong>Exact-score star:</strong> '+(exactKing?.roundExacts?sfEsc(sfName(exactKing))+' · '+exactKing.roundExacts+' exacts':'No exacts this week')+'</p>'+
+       (w.climbers.length?'<p><strong>Biggest climb:</strong> '+sfEsc(sfName(w.climbers[0]))+' ↑ '+w.climbers[0].delta+' places</p>':'')+
+       (w.complete&&w.bestExact?.exacts?'<p><strong>Best exact-score fixture:</strong> '+sfEsc(w.bestExact.name)+' ('+sfEsc(w.bestExact.score)+') · '+w.bestExact.exacts+' exacts</p>':'')+
+       '</div>':'')+
+     (sfLABad?'<div class="sfLAStoryBox bad"><b>😬 The bad</b>'+
+       '<p><strong>Lowest three:</strong> '+worst.map(p=>sfEsc(sfName(p))+' ('+p.roundPts+' pts)').join(' · ')+'</p>'+
+       (w.fallers.length?'<p><strong>Biggest fall:</strong> '+sfEsc(sfName(w.fallers[0]))+' ↓ '+Math.abs(w.fallers[0].delta)+' places</p>':'')+
+       (w.complete?'<p><strong>Blanks:</strong> '+w.zeros+' incorrect picks · '+w.misses+' missed predictions</p>':'')+
+       (w.complete&&w.hardest?'<p><strong>Toughest match:</strong> '+sfEsc(w.hardest.name)+' ('+sfEsc(w.hardest.score)+') · only '+w.hardest.scoring+'/'+w.hardest.picks+' picks scored</p>':'')+
+       '</div>':'')+'</div></details>';
+ }).join('');
+}
+function sfLAHtml(packs){
+ sfLAPrefs();
+ const data=sfLAData(packs),groups=[...new Set(sfLAColumns.map(c=>c[2]))];
+ return '<section class="sfLAHost">'+
+ '<div class="sfCard sfLAHero"><div class="sfHead"><h2>🏅 Season so far</h2><span>Six awards · top three each</span></div>'+
+ '<p class="sfLNote">Six different ways to lead the league. Human members only.</p>'+sfLACards(data)+'</div>'+
+ '<div class="sfCard"><div class="sfHead"><h3>📊 Our league, week by week</h3><span>'+data.rows.length+' completed</span></div>'+
+ '<p class="sfLNote">How the whole group performed across each finished round.</p>'+
+ '<div class="sfLAPresets">'+[['basic','Essentials'],['ranking','Rankings'],['accuracy','Accuracy'],['all','All stats']].map(a=>
+ '<button type="button" data-sfla-preset="'+a[0]+'">'+a[1]+'</button>').join('')+'</div>'+
+ '<details class="sfLAChooser"><summary>⚙️ Choose table columns <span data-sfla-counter></span></summary><div class="sfLAChooserInner">'+
+ groups.map(g=>'<div class="sfLAColGroup"><b>'+sfEsc(g)+'</b><div class="sfLAChecks">'+
+ sfLAColumns.filter(c=>c[2]===g).map(c=>'<label><input type="checkbox" data-sfla-col="'+c[0]+'">'+sfEsc(c[1])+'</label>').join('')+'</div></div>').join('')+
+ '<p class="sfLNote">Your choices are remembered on this device.</p></div></details>'+
+ '<div class="sfLATableTarget">'+sfLATable(data)+'</div></div>'+
+ '<div class="sfCard"><div class="sfHead"><h3>🏆 Matchweek records</h3><span>Good & bad · select a week</span></div>'+
+ '<p class="sfLNote">Open a matchweek to see the best and worst performers, records and standout fixtures.</p>'+
+ '<div class="sfLAToggles"><label><input type="checkbox" data-sfla-good> 🏅 Good records</label><label><input type="checkbox" data-sfla-bad> 😬 Bad records</label></div>'+
+ '<div class="sfLARecordsTarget">'+sfLARecords(data)+'</div>'+
+ (!data.complete?'<p class="sfLNote">Some detailed prediction evidence is unavailable; completed-week points and standings remain available.</p>':'')+
+ '</div></section>';
+}
+function sfLAStyle(){
+ if(document.getElementById('sf-league-week-summary-style'))return;
+ const style=document.createElement('style');style.id='sf-league-week-summary-style';
+ style.textContent=[
+ '.sfLAHost{margin-bottom:13px}.sfLAHero{background:linear-gradient(140deg,#fff,#faf7ff);border-color:#dfd6ef}',
+ '.sfLNote{font-size:10px;line-height:1.45;color:#797188;margin:6px 0 10px}',
+ '.sfLACards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}',
+ '.sfLAward{background:#fff;border:1px solid #e7e1ef;border-radius:14px;padding:10px 8px;min-width:0}',
+ '.sfLAwardTitle{font-size:11px;line-height:1.35;color:#241153}.sfLAward p{min-height:23px;color:#8a8193;font-size:9px;line-height:1.35;margin:4px 0 8px}',
+ '.sfLAwardLine{display:flex;align-items:center;gap:4px;border-top:1px solid #f0edf4;padding:7px 0;min-width:0}',
+ '.sfLAwardLine.champion{background:#f2edfa;border:1px solid #e7daf7;border-radius:10px;padding:8px 5px;margin-bottom:3px}',
+ '.sfLAwardLine>span{font-size:10px}.sfLAwardLine>b{flex:1;min-width:0;font-size:9.5px;color:#4e4662;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+ '.sfLAwardLine.champion>b{color:#241153}.sfLAwardLine>strong{font-size:9.5px;white-space:nowrap;color:#241153}',
+ '.sfLAPresets{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.sfLAPresets button{border:1px solid #ded8e9;border-radius:99px;background:#f5f2fb;color:#4e397b;font-size:10px;font-weight:900;padding:8px 10px}',
+ '.sfLAPresets button.on{background:#4b269d;color:white;border-color:#4b269d}',
+ '.sfLAChooser{background:#faf9fd;border:1px solid #e7e2ee;border-radius:12px;margin:10px 0}.sfLAChooser summary{cursor:pointer;padding:12px;font-size:11px;font-weight:900;color:#4b269d;list-style:none}',
+ '.sfLAChooser summary::-webkit-details-marker{display:none}.sfLAChooser summary span{float:right;font-size:10px;color:#81768d}',
+ '.sfLAChooserInner{padding:0 12px 12px}.sfLAColGroup{padding:9px 0;border-top:1px solid #eeebf2}.sfLAColGroup b{font-size:10px;color:#564d67}',
+ '.sfLAChecks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:8px}.sfLAChecks label{font-size:10px;color:#51465f;display:flex;gap:6px;align-items:flex-start;line-height:1.3}',
+ '.sfLAChecks input,.sfLAToggles input{accent-color:#4b269d;flex:none;margin:1px 0 0}',
+ '.sfLAScroll{overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #e5e0ea;border-radius:12px}',
+ '.sfLATable{border-collapse:separate;border-spacing:0;min-width:100%;width:max-content}.sfLATable th,.sfLATable td{font-size:10px;white-space:nowrap;text-align:center;padding:11px 12px!important;border-bottom:1px solid #eeebf2}',
+ '.sfLATable thead th{background:#f2eef9;color:#4f3d74;font-weight:900;font-size:9px}.sfLATable .sfLAFirst{position:sticky;left:0;z-index:2;background:#fff;text-align:left;color:#241153;font-weight:900;box-shadow:2px 0 5px #25154115}',
+ '.sfLATable thead .sfLAFirst{z-index:3;background:#f2eef9}.sfLATable tbody tr:nth-child(even) td,.sfLATable tbody tr:nth-child(even) .sfLAFirst{background:#faf9fd}.sfLATable tbody tr:last-child td,.sfLATable tbody tr:last-child th{border-bottom:0}',
+ '.sfLAToggles{display:flex;flex-wrap:wrap;gap:8px;margin:11px 0}.sfLAToggles label{display:flex;align-items:center;gap:6px;padding:9px 10px;border-radius:11px;background:#f5f2fa;font-size:10px;font-weight:900;color:#4e3e6e}',
+ '.sfLAWeek{border:1px solid #e9e3ef;border-radius:12px;margin:8px 0;background:white;overflow:hidden}.sfLAWeek summary{list-style:none;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;color:#241153;cursor:pointer}',
+ '.sfLAWeek summary::-webkit-details-marker{display:none}.sfLAWeek summary b{font-size:11px}.sfLAWeek summary small{display:block;color:#8b8395;font-size:9px;margin-top:4px}.sfLAWeek summary strong{font-size:10px;white-space:nowrap}',
+ '.sfLAStory{padding:0 11px 12px}.sfLAStoryBox{background:#f8fcfa;border:1px solid #e2eee7;border-radius:12px;padding:10px;margin-top:8px}.sfLAStoryBox.bad{background:#fffafa;border-color:#f0e3e4}',
+ '.sfLAStoryBox>b{font-size:11px;color:#241153}.sfLAStoryBox p{font-size:10px;color:#5b5365;line-height:1.55;margin:8px 0 0}',
+ '@media(min-width:650px){.sfLACards{grid-template-columns:repeat(3,minmax(0,1fr))}.sfLAChecks{grid-template-columns:repeat(3,minmax(0,1fr))}}'
+ ].join('');
+ document.head.appendChild(style);
+}
+function sfLABind(host,packs){
+ sfLAStyle();
+ const panel=host.querySelector('.sfLAHost');if(!panel)return;
+ const data=sfLAData(packs);
+ const sync=()=>{
+   panel.querySelector('[data-sfla-counter]').textContent=sfLASelected.size+' selected';
+   panel.querySelectorAll('[data-sfla-col]').forEach(el=>el.checked=sfLASelected.has(el.dataset.sflaCol));
+   panel.querySelector('[data-sfla-good]').checked=sfLAGood;panel.querySelector('[data-sfla-bad]').checked=sfLABad;
+   panel.querySelectorAll('[data-sfla-preset]').forEach(b=>{
+     const a=sfLAPresets[b.dataset.sflaPreset];b.classList.toggle('on',a.length===sfLASelected.size&&a.every(c=>sfLASelected.has(c)));
+   });
+ };
+ panel.addEventListener('change',e=>{
+   const col=e.target.closest('[data-sfla-col]');
+   if(col){
+     if(col.checked)sfLASelected.add(col.dataset.sflaCol);else sfLASelected.delete(col.dataset.sflaCol);
+     sfLASave();panel.querySelector('.sfLATableTarget').innerHTML=sfLATable(data);sync();return;
+   }
+   if(e.target.matches('[data-sfla-good]'))sfLAGood=e.target.checked;
+   else if(e.target.matches('[data-sfla-bad]'))sfLABad=e.target.checked;
+   else return;
+   const opened=[...panel.querySelectorAll('.sfLAWeek[open]')].map(x=>x.dataset.sflaWeek);
+   sfLASave();panel.querySelector('.sfLARecordsTarget').innerHTML=sfLARecords(data);
+   panel.querySelectorAll('.sfLAWeek').forEach(x=>{x.open=opened.includes(x.dataset.sflaWeek)});
+   sync();
+ });
+ panel.addEventListener('click',e=>{
+   const preset=e.target.closest('[data-sfla-preset]');if(!preset)return;
+   sfLASelected=new Set(sfLAPresets[preset.dataset.sflaPreset]);sfLASave();
+   panel.querySelector('.sfLATableTarget').innerHTML=sfLATable(data);sync();
+ });
+ sync();
+}
+
 function sfLeagueHtml(agg=null){
   const d=sfDashboard||{};
   const players=sfProfiles?.players||[];
@@ -790,7 +1038,8 @@ async function sfRender(host){
       const evidence=await sfLoadLeagueEvidence(false).catch(()=>[]);
       if(!host.isConnected||sfMode!=='league')return;
       const agg=sfLeagueAggregates(evidence);
-      host.innerHTML=sfTabs()+sfLeagueHtml(agg);
+      host.innerHTML=sfTabs()+sfLAHtml(evidence)+sfLeagueHtml(agg);
+      sfLABind(host,evidence);
     }
   }catch(e){
     if(host.isConnected)host.innerHTML=sfTabs()+`<div class="sfError">Couldn’t load the new stats view yet.<br>${sfEsc(e.message||String(e))}</div>`;
