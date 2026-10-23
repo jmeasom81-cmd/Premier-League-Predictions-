@@ -64,7 +64,7 @@ function hfCss(){
     .hfHero{
       position:relative;
       overflow:hidden;
-      min-height:min(56vh,520px);
+      min-height:290px;
       border-radius:0 0 28px 28px;
       margin:-1px -1px 13px;
       padding:18px 17px 16px;
@@ -82,8 +82,8 @@ function hfCss(){
     .hfHero::before{
       content:"";
       position:absolute;
-      width:min(67vw,310px);
-      height:min(67vw,310px);
+      width:min(57vw,220px);
+      height:min(57vw,220px);
       left:50%;
       top:42%;
       transform:translate(-50%,-50%);
@@ -209,9 +209,9 @@ function hfCss(){
     body.hfHome #main>.card.hfNoticeQuiet{display:none!important}
 
     @media(max-width:520px){
-      .hfHero{min-height:min(53vh,470px);border-radius:0 0 25px 25px;padding:16px 14px 14px}
+      .hfHero{min-height:255px;border-radius:0 0 25px 25px;padding:16px 14px 14px}
       .hfHeroTop{left:14px;right:14px}
-      .hfHero::before{width:min(72vw,285px);height:min(72vw,285px)}
+      .hfHero::before{width:min(58vw,210px);height:min(58vw,210px)}
       .hfTeamName{font-size:21px}
       .hfPrediction{grid-template-columns:auto minmax(0,1fr) auto}
       .hfLast{grid-template-columns:minmax(0,1fr) repeat(3,44px);gap:5px}
@@ -400,10 +400,12 @@ function hfLastRoundHtml(d){
 }
 
 function hfHtml(d){
+  // The league news is immediately below the personalised hero; no extra
+  // WhatsApp or status cards can bury a league owner's latest update.
   return `${hfHeroHtml(d)}
-    ${hfWhatsAppHtml()}
+    <div class="hfLeagueFeedSlot" aria-label="League messages newest first"></div>
     ${hfPredictionHtml(d)}
-    <div class="hfLeagueFeedSlot"></div>
+    ${hfWhatsAppHtml()}
     <div class="hfLiveSlot"></div>
     ${hfPulseHtml(d)}
     ${hfLastRoundHtml(d)}`;
