@@ -96,7 +96,7 @@ function phUpdates(d){
  const list=Array.isArray(d?.messages)?[...d.messages]:[];
  list.sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
  if(!list.length)return '<div class="phCard"><h3>📣 League messages</h3><p>No current league messages.</p></div>';
- const latest=list.find(m=>m.private)||list.find(m=>m.source_type==='owner_generator')||list[0];
+ const latest=list.find(m=>m.private)||list.find(m=>['owner_generator','daily_recap'].includes(m.source_type))||list[0];
  const older=list.filter(m=>m.id!==latest.id);
  return '<section class="phCard"><h3>📣 Latest from James</h3>'+
   '<div class="phFeature"><div class="phTag">'+phEsc(latest.private?'Private message':'League update from James')+'</div>'+
