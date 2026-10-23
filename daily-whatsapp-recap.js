@@ -214,7 +214,7 @@ async function prLoad(rawDay,playerId){
  const me=totals.get(String(person.user_id));
  const leaderboard=[...totals.values()].sort((a,b)=>b.points-a.points||b.exacts-a.exacts||b.correct-a.correct||drName(a).localeCompare(drName(b)));
  const scores=[...totals.values()].map(x=>x.points);
- const rank=1+scores.filter(x=>x>me.points).length;
+ const rank=1+leaderboard.findIndex(x=>String(x.user_id)===String(me.user_id));
  const dayBest=Math.max(0,...scores);
  const ties=scores.filter(x=>x===me.points).length;
  const average=scores.length?Math.round(scores.reduce((a,b)=>a+b,0)*10/scores.length)/10:0;
@@ -316,7 +316,7 @@ async function prLoadPeriod(playerId){
  const scores=leaderboard.map(x=>x.points),dayBest=Math.max(0,...scores);
  const number=prN(json.fixtures_count);
  return {
-   members,me,leaderboard,games,rank:1+scores.filter(x=>x>me.points).length,
+   members,me,leaderboard,games,rank:1+leaderboard.findIndex(x=>String(x.user_id)===String(me.user_id)),
    dayBest,ties:scores.filter(x=>x===me.points).length,
    average:scores.length?Math.round(scores.reduce((a,b)=>a+b,0)*10/scores.length)/10:0,
    number,remaining:Math.max(0,number-games.length),live:games.some(x=>x.live),
@@ -338,7 +338,7 @@ function prMessage(d){
  if(!d.number&&!d.games.length)return 'No fixtures have been scheduled for '+heading+'. Choose another reporting period.';
  if(d.number&&!d.games.length)return '⚽ *Premier League Predictions*\n*'+drName(me)+' — '+heading+'*\n\n⏳ '+d.number+' fixture'+(d.number===1?' is':'s are')+' scheduled, but no score has been recorded yet. Statistics will build as results arrive.\n\n📲 '+DR_APP;
  section('summary',d.scope&&d.scope!=='day'?'🏅 *Period performance*':'🏅 *Today*',me.points+' points · '+me.submitted+'/'+d.games.length+' scored fixtures predicted'+(d.remaining?' · '+d.remaining+' still awaiting scores':''));
- section('position',d.scope&&d.scope!=='day'?'🏆 *Period ranking*':'🏆 *Daily position*',drOrdinal(d.rank)+' of '+d.members.length+(d.ties>1?' (joint on points)':'')+' · '+(d.dayBest-me.points)+' behind today’s top score');
+ section('position',d.scope&&d.scope!=='day'?'🏆 *Period ranking*':'🏆 *Daily position*',drOrdinal(d.rank)+' of '+d.members.length+(d.ties>1?' · '+(d.ties-1)+' other player'+(d.ties-1===1?'':'s')+' on the same points':'')+' · '+(d.dayBest-me.points)+' pts behind '+(d.scope&&d.scope!=='day'?'the period leader':'today’s top score'));
  section('scoring','✅ *Scoring picks*',me.correct+'/'+me.submitted+' returned points ('+prPct(me.correct,me.submitted)+')');
  section('exact','🎯 *Exact scores*',me.exacts+' exact'+(me.exacts===1?'':'s')+' · '+prPct(me.exacts,me.submitted)+' exact hit rate · '+(me.correct-me.exacts)+' other correct outcomes');
  section('compare','📊 *League comparison*','League average '+d.average+' pts · '+drName(me)+' '+(me.points>=d.average?'+':'')+(Math.round((me.points-d.average)*10)/10)+' pts against average');
