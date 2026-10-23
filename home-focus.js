@@ -403,8 +403,8 @@ function hfHtml(d){
   // The league news is immediately below the personalised hero; no extra
   // WhatsApp or status cards can bury a league owner's latest update.
   return `${hfHeroHtml(d)}
-    <div class="hfLeagueFeedSlot" aria-label="League messages newest first"></div>
     ${hfPredictionHtml(d)}
+    <div class="hfLeagueFeedSlot" aria-label="League messages newest first"></div>
     ${hfWhatsAppHtml()}
     <div class="hfLiveSlot"></div>
     ${hfPulseHtml(d)}
