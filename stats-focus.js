@@ -258,6 +258,194 @@ function sfDroughtStats(evidence){
   };
 }
 
+
+// End-of-round league standings history and customizable matchweek table.
+const sfMWCols=[
+ ['points','Points','Main'],['position','End position','Main'],['move','Places moved','Main'],
+ ['exacts','Exacts','Main'],['picks','Picks','Main'],['rate','Scoring %','Main'],
+ ['total','Season points','Positions'],['weekly','Weekly rank','Positions'],
+ ['average','League avg','Positions'],['vsavg','vs average','Positions'],
+ ['winner','MW winner','Positions'],['topthree','Weekly top 3','Positions'],
+ ['scored','Scoring picks','Prediction accuracy'],['onepoint','1-point picks','Prediction accuracy'],
+ ['exactrate','Exact rate','Prediction accuracy'],['ptspick','Pts per pick','Prediction accuracy'],
+ ['near','Near-exacts','Prediction accuracy'],
+ ['games','Matches scored','Participation'],['missed','Missed picks','Participation'],
+ ['zero','Zero-point picks','Participation'],['exactpoints','3-point returns','Points split'],
+ ['outcomepoints','1-point returns','Points split'],
+ ['home','Home wins picked','Calls'],['draw','Draws picked','Calls'],['away','Away wins picked','Calls'],
+ ['predgoals','Predicted goals','Goals'],['realgoals','Actual goals','Goals'],
+ ['goalbias','Goals difference','Goals'],['error','Avg score error','Goals']
+];
+const sfMWPresets={
+ essentials:['points','position','move','exacts','picks','rate'],
+ accuracy:['points','exacts','scored','rate','exactrate','ptspick','near','zero'],
+ rankings:['points','position','move','total','weekly','average','vsavg','winner','topthree'],
+ all:sfMWCols.map(x=>x[0])
+};
+let sfMWUser='',sfMWSelected=new Set(sfMWPresets.essentials),sfMWRange='all';
+const sfMWN=v=>Number(v)||0,sfMW1=v=>Math.round(v*10)/10;
+const sfMWPct=(a,b)=>b?sfMW1(a*100/b)+'%':'—';
+const sfMWSigned=n=>(n>0?'+':'')+sfMW1(n);
+function sfMWPrefs(uid){
+ if(sfMWUser===uid)return;
+ sfMWUser=uid;let saved=null;
+ try{saved=JSON.parse(localStorage.getItem('plp_mw_stats_'+uid)||'null')}catch{}
+ const keys=new Set(sfMWCols.map(c=>c[0]));
+ sfMWSelected=new Set(Array.isArray(saved)&&saved.some(c=>keys.has(c))?saved.filter(c=>keys.has(c)):sfMWPresets.essentials);
+}
+function sfMWSave(){
+ try{localStorage.setItem('plp_mw_stats_'+sfMWUser,JSON.stringify([...sfMWSelected]))}catch{}
+}
+function sfMWRows(p,e){
+ const weeks=[...(p.matchweeks||[])].filter(w=>sfMWN(w.matchweek)>0&&sfMWN(w.league_position)>0).sort((a,b)=>sfMWN(a.matchweek)-sfMWN(b.matchweek));
+ const evidence=Array.isArray(e?.all_fixtures)?e.all_fixtures:null;
+ const fs=new Map();
+ for(const f of evidence||[]){const mw=sfMWN(f.matchweek);if(!fs.has(mw))fs.set(mw,[]);fs.get(mw).push(f)}
+ const averages=new Map();
+ for(const player of sfProfiles?.players||[])for(const w of player.matchweeks||[]){
+   const mw=sfMWN(w.matchweek),val=averages.get(mw)||{total:0,count:0};
+   val.total+=sfMWN(w.points);val.count++;averages.set(mw,val);
+ }
+ let cumulative=0,prior=null;
+ return weeks.map(w=>{
+   const week=sfMWN(w.matchweek),points=sfMWN(w.points),pos=sfMWN(w.league_position);
+   const matches=fs.get(week)||[],picks=matches.filter(f=>f.has_prediction===true),n=picks.length,ex=sfMWN(w.exacts);
+   const scoring=picks.filter(f=>sfMWN(f.points)>0).length;
+   const pred=picks.reduce((s,f)=>s+sfMWN(f.predicted_home)+sfMWN(f.predicted_away),0);
+   const actual=picks.reduce((s,f)=>s+sfMWN(f.actual_home)+sfMWN(f.actual_away),0);
+   const err=picks.reduce((s,f)=>s+Math.abs(sfMWN(f.predicted_home)-sfMWN(f.actual_home))+Math.abs(sfMWN(f.predicted_away)-sfMWN(f.actual_away)),0);
+   const avg=averages.get(week),mean=avg?.count?avg.total/avg.count:null;
+   cumulative+=points;
+   const data={
+     points,position:sfOrd(pos),move:prior===null?'—':sfMWSigned(prior-pos),
+     exacts:ex,picks:evidence?n:'—',rate:evidence?sfMWPct(scoring,n):'—',
+     total:cumulative,weekly:sfOrd(w.weekly_position),
+     average:mean===null?'—':sfMW1(mean),vsavg:mean===null?'—':sfMWSigned(points-mean),
+     winner:sfMWN(w.weekly_position)===1?'Yes':'—',topthree:sfMWN(w.weekly_position)<=3?'Yes':'—',
+     scored:evidence?scoring:'—',onepoint:evidence?scoring-picks.filter(f=>sfMWN(f.points)===3).length:'—',
+     exactrate:evidence?sfMWPct(picks.filter(f=>sfMWN(f.points)===3).length,n):'—',
+     ptspick:evidence&&n?sfMW1(points/n):'—',
+     near:evidence?picks.filter(f=>Math.abs(sfMWN(f.predicted_home)-sfMWN(f.actual_home))+Math.abs(sfMWN(f.predicted_away)-sfMWN(f.actual_away))===1).length:'—',
+     games:evidence?matches.length:'—',missed:evidence?matches.filter(f=>f.has_prediction!==true).length:'—',
+     zero:evidence?picks.filter(f=>sfMWN(f.points)===0).length:'—',
+     exactpoints:3*ex,outcomepoints:points-3*ex,
+     home:evidence?picks.filter(f=>sfMWN(f.predicted_home)>sfMWN(f.predicted_away)).length:'—',
+     draw:evidence?picks.filter(f=>sfMWN(f.predicted_home)===sfMWN(f.predicted_away)).length:'—',
+     away:evidence?picks.filter(f=>sfMWN(f.predicted_home)<sfMWN(f.predicted_away)).length:'—',
+     predgoals:evidence?pred:'—',realgoals:evidence?actual:'—',
+     goalbias:evidence?sfMWSigned(pred-actual):'—',error:evidence&&n?sfMW1(err/n):'—'
+   };
+   prior=pos;return {week,points,pos,data};
+ });
+}
+function sfMWTable(rows){
+ if(!rows.length)return '<div class="sfMWEmpty">Matchweek history appears after the first full round has finished. Unfinished rounds are not assigned a final position.</div>';
+ const cols=sfMWCols.filter(x=>sfMWSelected.has(x[0]));
+ return '<div class="sfMWScroll" tabindex="0" role="region" aria-label="Scrollable matchweek statistics"><table class="sfMWTable"><thead><tr><th scope="col" class="sfMWFirst">MW</th>'+
+ cols.map(c=>'<th scope="col">'+sfEsc(c[1])+'</th>').join('')+'</tr></thead><tbody>'+
+ rows.map(r=>'<tr><th scope="row" class="sfMWFirst">MW'+r.week+'</th>'+
+ cols.map(c=>{
+   const value=r.data[c[0]];
+   const cls=c[0]==='move'?(String(value).startsWith('+')?'sfMWUp':String(value).startsWith('-')?'sfMWDown':''):'';
+   return '<td class="'+cls+'">'+sfEsc(value??'—')+'</td>';
+ }).join('')+'</tr>').join('')+'</tbody></table></div><p class="sfMWNote">Swipe sideways for more columns. Positions are from the <b>end of each completed matchweek</b>.</p>';
+}
+function sfMWPlot(rows){
+ if(!rows.length)return '<div class="sfMWEmpty">The position graph will begin once matchweek 1 is complete.</div>';
+ const series=sfMWRange==='last8'?rows.slice(-8):sfMWRange==='last15'?rows.slice(-15):rows;
+ const count=Math.max(1,sfMWN(sfProfiles?.players?.length),...rows.map(r=>r.pos));
+ const W=Math.max(310,48+series.length*36),H=260,L=37,R=15,T=25,B=41;
+ const x=i=>series.length===1?(L+W-R)/2:L+i*(W-L-R)/(series.length-1);
+ const y=pos=>T+(pos-1)*(H-T-B)/Math.max(count-1,1);
+ const ticks=[...new Set([1,Math.round((count+1)/2),count])];
+ let svg='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+sfEsc(series.map(r=>'MW'+r.week+': '+sfOrd(r.pos)).join(', '))+'">';
+ for(const v of ticks)svg+='<line x1="'+L+'" y1="'+y(v)+'" x2="'+(W-R)+'" y2="'+y(v)+'" stroke="#e6e1ef" stroke-dasharray="4 4"/><text x="'+(L-7)+'" y="'+(y(v)+4)+'" font-size="10" fill="#7c728d" text-anchor="end">'+v+'</text>';
+ svg+='<path d="'+series.map((r,i)=>(i?'L':'M')+x(i)+' '+y(r.pos)).join(' ')+'" fill="none" stroke="#5633b1" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
+ series.forEach((r,i)=>{
+   svg+='<circle cx="'+x(i)+'" cy="'+y(r.pos)+'" r="4.5" fill="#5633b1" stroke="white" stroke-width="2"><title>MW'+r.week+' — '+sfOrd(r.pos)+' position, '+r.points+' pts that week</title></circle>';
+   svg+='<text x="'+x(i)+'" y="'+(H-18)+'" text-anchor="middle" font-size="9.5" fill="#777087">'+r.week+'</text>';
+ });
+ svg+='<text x="'+L+'" y="12" font-size="10" fill="#79728b">Best ↑</text><text x="'+(W-R)+'" y="'+(H-3)+'" font-size="9" fill="#79728b" text-anchor="end">Matchweek →</text></svg>';
+ const first=series[0],last=series[series.length-1],diff=first.pos-last.pos;
+ return '<div class="sfMWChart" role="region" tabindex="0" aria-label="Scrollable final league position chart">'+svg+'</div>'+
+ '<div class="sfMWFoot"><span>First: '+sfOrd(first.pos)+'</span><span>Latest: '+sfOrd(last.pos)+'</span>'+
+ '<span class="'+(diff>0?'sfMWUp':diff<0?'sfMWDown':'')+'">'+(diff>0?'↑ '+diff+' places':diff<0?'↓ '+Math.abs(diff)+' places':'No net change')+'</span></div>'+
+ '<p class="sfMWNote">Only <b>fully completed</b> matchweeks. 1st place is at the top, and each dot is that week’s final position.</p>';
+}
+function sfMWHtml(p,e){
+ sfMWPrefs(String(p.user_id));
+ const rows=sfMWRows(p,e);
+ const groups=[...new Set(sfMWCols.map(x=>x[2]))];
+ return '<section class="sfMWWrap">'+
+ '<div class="sfCard"><div class="sfHead"><h3>📋 My matchweek table</h3><span>'+rows.length+' completed rounds</span></div>'+
+ '<p class="sfMWNote">Points, final position and your choice of extra statistics for every finished matchweek.</p>'+
+ '<div class="sfMWButtons">'+[['essentials','Essentials'],['accuracy','Accuracy'],['rankings','Rankings'],['all','All stats']].map(a=>'<button type="button" data-sfmw-preset="'+a[0]+'">'+a[1]+'</button>').join('')+'</div>'+
+ '<details class="sfMWPicker"><summary>⚙️ Choose your columns <span data-sfmw-count></span></summary><div class="sfMWPickerInner">'+
+ groups.map(group=>'<div class="sfMWGroup"><b>'+sfEsc(group)+'</b><div class="sfMWChecks">'+
+ sfMWCols.filter(c=>c[2]===group).map(c=>'<label><input type="checkbox" data-sfmw-col="'+c[0]+'">'+sfEsc(c[1])+'</label>').join('')+'</div></div>').join('')+
+ '<p class="sfMWNote">Columns are saved for you on this device; MW always remains visible.</p></div></details>'+
+ '<div class="sfMWTableTarget">'+sfMWTable(rows)+'</div></div>'+
+ '<div class="sfCard"><div class="sfHead"><h3>📈 My league position</h3><span>End of each matchweek</span></div>'+
+ '<div class="sfMWButtons">'+[['all','All weeks'],['last15','Last 15'],['last8','Last 8']].map(a=>'<button type="button" data-sfmw-range="'+a[0]+'">'+a[1]+'</button>').join('')+'</div>'+
+ '<div class="sfMWGraphTarget">'+sfMWPlot(rows)+'</div></div></section>';
+}
+function sfMWCss(){
+ if(document.getElementById('sf-mw-data-style'))return;
+ const s=document.createElement('style');s.id='sf-mw-data-style';
+ s.textContent=[
+ '.sfMWNote{font-size:10px;color:#7a7486;line-height:1.5;margin:7px 0 10px}',
+ '.sfMWButtons{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}',
+ '.sfMWButtons button{border:1px solid #ddd7e9;border-radius:999px;background:#f4f1fa;color:#4b3879;padding:8px 10px;font-size:10px;font-weight:900}',
+ '.sfMWButtons button.on{background:#4b269d;border-color:#4b269d;color:white}',
+ '.sfMWPicker{border:1px solid #e7e3ed;background:#faf9fc;border-radius:12px;margin:10px 0}',
+ '.sfMWPicker summary{list-style:none;padding:12px;font-size:11px;font-weight:900;color:#4b269d;cursor:pointer}.sfMWPicker summary::-webkit-details-marker{display:none}',
+ '.sfMWPicker summary span{float:right;color:#827a90;font-size:10px}.sfMWPickerInner{padding:0 12px 12px}',
+ '.sfMWGroup{padding:9px 0;border-top:1px solid #eeebf2}.sfMWGroup b{font-size:10px;color:#585064}',
+ '.sfMWChecks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:9px}',
+ '.sfMWChecks label{font-size:10px;line-height:1.3;color:#4a4254;display:flex;align-items:flex-start;gap:6px}',
+ '.sfMWChecks input{accent-color:#4b269d;margin:1px 0 0;flex:none}',
+ '.sfMWScroll,.sfMWChart{overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;border:1px solid #e7e3eb;border-radius:12px;background:white}',
+ '.sfMWTable{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0}',
+ '.sfMWTable th,.sfMWTable td{white-space:nowrap;padding:11px 12px!important;border-bottom:1px solid #efecf3;text-align:center;font-size:10.5px}',
+ '.sfMWTable thead th{background:#f2eff8;color:#513e77;font-size:9px;font-weight:900}',
+ '.sfMWTable .sfMWFirst{position:sticky;left:0;z-index:2;background:white;text-align:left;font-weight:950;color:#241153;box-shadow:2px 0 4px #21104712}',
+ '.sfMWTable thead .sfMWFirst{z-index:3;background:#f2eff8}',
+ '.sfMWTable tbody tr:nth-child(even) td,.sfMWTable tbody tr:nth-child(even) .sfMWFirst{background:#faf9fd}',
+ '.sfMWTable tbody tr:last-child td,.sfMWTable tbody tr:last-child th{border-bottom:none}',
+ '.sfMWUp{color:#08775c!important;font-weight:900}.sfMWDown{color:#b52c3c!important;font-weight:900}',
+ '.sfMWChart svg{display:block;max-width:none}.sfMWFoot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:9px;margin-top:10px;font-size:10px;color:#746c81}',
+ '.sfMWEmpty{font-size:11px;color:#827b8d;border:1px dashed #ddd7e5;border-radius:12px;padding:15px;line-height:1.5}',
+ '@media(min-width:600px){.sfMWChecks{grid-template-columns:repeat(3,minmax(0,1fr))}}'
+ ].join('');
+ document.head.appendChild(s);
+}
+function sfMWBind(host,p,e){
+ sfMWCss();
+ const section=host.querySelector('.sfMWWrap');if(!section)return;
+ const rows=sfMWRows(p,e);
+ const sync=()=>{
+   section.querySelector('[data-sfmw-count]').textContent=sfMWSelected.size+' selected';
+   section.querySelectorAll('[data-sfmw-col]').forEach(c=>c.checked=sfMWSelected.has(c.dataset.sfmwCol));
+   section.querySelectorAll('[data-sfmw-preset]').forEach(b=>{
+     const arr=sfMWPresets[b.dataset.sfmwPreset];
+     b.classList.toggle('on',arr.length===sfMWSelected.size&&arr.every(x=>sfMWSelected.has(x)));
+   });
+   section.querySelectorAll('[data-sfmw-range]').forEach(b=>b.classList.toggle('on',b.dataset.sfmwRange===sfMWRange));
+ };
+ section.addEventListener('change',ev=>{
+   const check=ev.target.closest('[data-sfmw-col]');if(!check)return;
+   if(check.checked)sfMWSelected.add(check.dataset.sfmwCol);else sfMWSelected.delete(check.dataset.sfmwCol);
+   sfMWSave();section.querySelector('.sfMWTableTarget').innerHTML=sfMWTable(rows);sync();
+ });
+ section.addEventListener('click',ev=>{
+   const preset=ev.target.closest('[data-sfmw-preset]');
+   if(preset){sfMWSelected=new Set(sfMWPresets[preset.dataset.sfmwPreset]);sfMWSave();section.querySelector('.sfMWTableTarget').innerHTML=sfMWTable(rows);sync();return}
+   const range=ev.target.closest('[data-sfmw-range]');
+   if(range){sfMWRange=range.dataset.sfmwRange;section.querySelector('.sfMWGraphTarget').innerHTML=sfMWPlot(rows);sync()}
+ });
+ sync();
+}
+
 function sfSelfHtml(p,e){
   const mws=p.matchweeks||[];
   const closed=sfNum(sfProfiles?.closed_matchweeks);
@@ -592,7 +780,8 @@ async function sfRender(host){
       const p=sfPlayer();
       if(!p){host.innerHTML=sfTabs()+'<div class="sfError">Couldn’t find your player stats yet.</div>';return}
       const e=await sfLoadSelfEvidence(false).catch(()=>null);
-      host.innerHTML=sfTabs()+sfSelfHtml(p,e);
+      host.innerHTML=sfTabs()+sfSelfHtml(p,e)+sfMWHtml(p,e);
+      sfMWBind(host,p,e);
       // Quietly prepare the heavier league analysis while the user reads My Stats.
       sfLoadLeagueEvidence(false).catch(()=>{});
     }else{
