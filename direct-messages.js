@@ -103,8 +103,8 @@ function dmRenderHome(){
  const host=main.querySelector('.hfHost')||main;
  const html=dmCard();
  let card=host.querySelector('#dm-home-card');
- if(!card){const wrap=document.createElement('div');wrap.innerHTML=html;host.prepend(wrap.firstElementChild)}
- else if(card.outerHTML!==html){card.outerHTML=html}
+ if(!card){const wrap=document.createElement('div');wrap.innerHTML=html;const fresh=wrap.firstElementChild;fresh.__dmMarkup=html;host.prepend(fresh)}
+ else if(card.__dmMarkup!==html){const wrap=document.createElement('div');wrap.innerHTML=html;const fresh=wrap.firstElementChild;fresh.__dmMarkup=html;card.replaceWith(fresh)}
 }
 function dmModal(){
  let el=document.getElementById('dm-modal');
