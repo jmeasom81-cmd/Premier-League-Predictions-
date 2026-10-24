@@ -1,5 +1,5 @@
-// TEAM STATS V1 — all clubs, all players, scored-result-only rankings.
-// Rendered inside the existing Stats -> Team Stats view.
+// PREMIER LEAGUE CLUB STATS — all clubs, all players, scored-result-only rankings.
+// Rendered inside the Stats -> PL Clubs view.
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const tpSb=createClient(
@@ -378,8 +378,8 @@ async function tpMain(host,tabsMarkup){
    return;
   }
   host.innerHTML=tabsMarkup+'<div class="tpHost">'+
-   '<div class="tpHeader"><div class="tpHead"><div><h2>⚽ Team Stats</h2>'+
-   '<p class="tpHint">Every club, ranked against the predictions of your league’s players.</p></div>'+
+   '<div class="tpHeader"><div class="tpHead"><div><h2>⚽ Premier League Club Stats</h2>'+
+   '<p class="tpHint">All 20 Premier League clubs — compared using the prediction points earned by our league members.</p></div>'+
    '<button type="button" class="tpRefresh" data-tp-refresh>↻ Refresh</button></div>'+
    '<div class="tpStats">'+tpStat(tpTeams().length,'Teams')+
    tpStat(tpData?.completed_fixtures,'Completed games')+
@@ -387,7 +387,7 @@ async function tpMain(host,tabsMarkup){
    tpClubLeagueTable()+tpClubChooser()+tpDetailHtml()+'</div>';
  }catch(err){
   if(host?.isConnected){
-   host.innerHTML=tabsMarkup+'<div class="sfError">Could not load Team Stats: '+
+   host.innerHTML=tabsMarkup+'<div class="sfError">Could not load Premier League Club Stats: '+
     tpEsc(err.message||String(err))+
    '<br>Please try again or refresh the app.</div>';
   }
