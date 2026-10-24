@@ -217,7 +217,7 @@ function mgFixtureExactParty(rows){
   return best;
 }
 
-async function mgLoad(scope,day=null,fixtureId=null){
+async function mgLoad(scope,day=null,fixtureId=null,matchweek=null){
   const c=await mgContext();
 
   let base={};
@@ -225,7 +225,16 @@ async function mgLoad(scope,day=null,fixtureId=null){
   let context={};
   let scoped=[];
 
-  if(scope==='matchday'||scope==='match'){
+  if(['week_so_far','preweek','preday'].includes(scope)){
+    const response=await mgSb.rpc('get_owner_message_story_period',{
+      p_league_id:c.leagueId,p_mode:scope,
+      p_day:scope==='preday'?day||null:null,
+      p_matchweek:scope!=='preday'?(Number(matchweek)||null):null
+    });
+    if(response.error)throw response.error;
+    base=response.data||{};
+    scoped=scope==='week_so_far'?mgArr(base.scored_rows):[];
+  }else if(scope==='matchday'||scope==='match'){
     const scopeRes=await mgSb.rpc('get_owner_message_scope',{
       p_league_id:c.leagueId,
       p_day:day||null,
@@ -305,6 +314,9 @@ async function mgLoad(scope,day=null,fixtureId=null){
   return {scope,base,history,context,scoped,near,form,exactParty,changes,sampleMatchweeks};
 }
 function mgScopeTitle(d){
+  if(d.scope==='week_so_far')return 'Matchweek '+mgNum(d.base?.matchweek)+' so far';
+  if(d.scope==='preweek')return 'Before Matchweek '+mgNum(d.base?.matchweek);
+  if(d.scope==='preday')return 'Pre-matchday · '+mgDateLabel(d.base?.selected_date);
   if(d.scope==='prematch'){
     const f=d.base?.selected_fixture;
     return f?('Pre-match · '+f.home_team+' v '+f.away_team):'Pre-match prediction analysis';
@@ -322,13 +334,14 @@ function mgScopeTitle(d){
 function mgTopPerformers(d){
   if(d.scope==='prematch')return [];
   if(d.scope==='matchday'||d.scope==='match')return mgArr(d.base.day_top_five);
-  if(d.scope==='matchweek')return mgArr(d.base.week_top_five);
+  if(d.scope==='matchweek'||d.scope==='week_so_far')return mgArr(d.base.week_top_five);
   return d.form.slice(0,5);
 }
 
 function mgBottomPerformers(d){
   if(d.scope==='prematch')return [];
   if(d.scope==='matchday'||d.scope==='match')return mgArr(d.base.day_bottom_five);
+  if(d.scope==='week_so_far')return mgArr(d.base.week_bottom_five).filter(x=>mgNum(x.submitted)>0);
   return [...d.form]
     .filter(x=>mgNum(x.submitted)>0)
     .sort((a,b)=>mgNum(a.points)-mgNum(b.points)||mgNum(a.exacts)-mgNum(b.exacts)||mgName(a).localeCompare(mgName(b)))
@@ -341,7 +354,7 @@ function mgExacts(d){
     total:mgNum(d.base.day_stats?.total_exacts),
     stars:mgArr(d.base.exact_stars)
   };
-  if(d.scope==='matchweek')return {
+  if(d.scope==='matchweek'||d.scope==='week_so_far')return {
     total:mgNum(d.base.week_stats?.total_exacts),
     stars:mgArr(d.base.exact_stars)
   };
@@ -359,14 +372,14 @@ function mgMovers(d){
 
 function mgTable(d){
   if(d.scope==='matchday'||d.scope==='match')return mgArr(d.base.top_three_after);
-  if(d.scope==='matchweek')return mgArr(d.base.top_three);
+  if(['matchweek','week_so_far','preweek','preday'].includes(d.scope))return mgArr(d.base.top_three);
   return mgArr(d.context?.standings).slice(0,3);
 }
 
 function mgAverage(d){
   if(d.scope==='prematch')return 0;
   if(d.scope==='matchday'||d.scope==='match')return mgNum(d.base.day_stats?.average_points);
-  if(d.scope==='matchweek')return mgNum(d.base.week_stats?.average_points);
+  if(d.scope==='matchweek'||d.scope==='week_so_far')return mgNum(d.base.week_stats?.average_points);
   if(!d.form.length)return 0;
   return Math.round(d.form.reduce((a,x)=>a+mgNum(x.points),0)*10/d.form.length)/10;
 }
@@ -407,7 +420,7 @@ function mgPromptFlags(prompt=''){
 }
 
 function mgChooseFocus(s,d){
-  if(d.scope==='prematch')return ['predictions'];
+  if(['prematch','preweek','preday'].includes(d.scope))return ['predictions'];
   const manual=!s.focuses.includes('auto');
   const out=manual?[...s.focuses]:[];
   if(!manual){
@@ -441,6 +454,14 @@ function mgLinePeople(rows,limit=3,metric='points'){
 
 function mgIntro(s,d){
   const scope=mgScopeTitle(d);
+  if(d.scope==='week_so_far'){
+    const b=d.base||{},done=mgNum(b.completed_count),live=mgNum(b.live_count),
+      pending=mgNum(b.upcoming_count),total=mgNum(b.fixtures_count);
+    let line='⚽ *Matchweek '+mgNum(b.matchweek)+' — so far*\n'+done+'/'+total+' full time';
+    if(live)line+=' · '+live+' live';
+    if(pending)line+=' · '+pending+' still to come';
+    return line+'.'+(s.tone==='banter'?'\nThe table is moving and the excuses are warming up. 😄':'');
+  }
 
   if(d.scope==='prematch'){
     const f=d.base?.selected_fixture;
@@ -832,7 +853,9 @@ function mgBuild(s,d){
   clean=clean.slice(0,maxSections);
 
   if(s.tone==='banter'&&s.length!=='short'){
-    const closers=d.scope==='prematch'
+    const closers=d.scope==='week_so_far'&&mgNum(d.base?.upcoming_count)>0
+      ?['Plenty still to play for. 👀','More matches to come — watch this space. 😄','Tomorrow could shake it all up.']
+      :d.scope==='prematch'
       ?['Kickoff will settle the arguments. 👀','Receipts saved. Let the football decide. 😄','Somebody is going to look very clever in a couple of hours. 😂']
       :s.mood==='stir'
         ?['Same time next round. Bring better guesses. 😄','Screenshots are encouraged. Excuses are not. 😂','The table remembers everything. 👀']
@@ -856,12 +879,25 @@ function mgTitleFor(d){
     return f?`${f.home_team} v ${f.away_team} · Match analysis`:'Individual match analysis';
   }
   if(d.scope==='matchday')return `${mgDateLabel(d.base.selected_date)} · Day so far`;
+  if(d.scope==='week_so_far')return 'Matchweek '+mgNum(d.base?.matchweek)+' · So far';
+  if(d.scope==='preweek')return 'Matchweek '+mgNum(d.base?.matchweek)+' · Pre-match banter';
+  if(d.scope==='preday')return mgDateLabel(d.base?.selected_date)+' · Pre-match banter';
   if(d.scope==='matchweek')return `Matchweek ${Number(d.base.matchweek||0)} · League update`;
   const n=d.sampleMatchweeks?.length||0;
   return `Current form · Last ${n||6} matchweek${n===1?'':'s'}`;
 }
 
 function mgFactsHtml(d){
+  if(d.scope==='preweek'||d.scope==='preday'){
+    return '<div class="mgPreviewFacts"><div class="mgFact"><b>'+mgNum(d.base?.upcoming_count)+'</b><span>Upcoming</span></div>'+ 
+      '<div class="mgFact"><b>'+mgNum(d.base?.players_count)+'</b><span>Players</span></div>'+ 
+      '<div class="mgFact"><b>'+mgNum(mgArr(d.base?.top_three)[0]?.points)+'</b><span>Leader pts</span></div></div>';
+  }
+  if(d.scope==='week_so_far'){
+    return '<div class="mgPreviewFacts"><div class="mgFact"><b>'+mgNum(d.base?.completed_count)+'</b><span>Full time</span></div>'+ 
+      '<div class="mgFact"><b>'+mgNum(d.base?.live_count)+'</b><span>Live</span></div>'+ 
+      '<div class="mgFact"><b>'+mgNum(d.base?.upcoming_count)+'</b><span>Still to come</span></div></div>';
+  }
   if(d.scope==='prematch'){
     const st=d.base?.prediction_stats||{};
     const top=mgArr(d.base?.popular_scores)[0];
