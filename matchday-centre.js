@@ -326,7 +326,7 @@ async function mc3Fetch(force=false,providerForce=false){
     let ctx={standings:[],ai_picks:[],current_user_id:mc3UserId};
     let feed={ok:false,live:[],recent_final:[],source:'history',source_label:'Prediction history'};
 
-    const [ctxSet,feedSet,cacheSet]=await Promise.allSettled([
+    const [ctxSet,feedSet,cacheSet,manualSet]=await Promise.allSettled([
       mc3Timeout(
         mc3Sb.rpc('get_match_centre_context',{p_league_id:mc3LeagueId}),
         2200,
@@ -341,6 +341,11 @@ async function mc3Fetch(force=false,providerForce=false){
         mc3Sb.rpc('get_live_score_state_feed',{p_league_id:mc3LeagueId}),
         1400,
         'Stored live scores'
+      ),
+      mc3Timeout(
+        mc3Sb.rpc('get_manual_live_scores',{p_league_id:mc3LeagueId}),
+        2200,
+        'Owner live scores'
       )
     ]);
 
@@ -367,9 +372,22 @@ async function mc3Fetch(force=false,providerForce=false){
 
     const history=mc3AddAi(histRes.data||[],ctx.ai_picks||[]);
     const rows=mc3BuildRows(feed,history);
+    const manual=manualSet.status==='fulfilled'&&!manualSet.value.error
+      ?(manualSet.value.data||{is_owner:false,overrides:[],eligible:[]})
+      :{is_owner:false,overrides:[],eligible:[]};
+    const byFixture=new Map(rows.map(row=>[String(row.appFixture?.fixture_id||row.app_fixture_id||''),row]));
+    for(const edit of manual.overrides||[]){
+      const row=byFixture.get(String(edit.fixture_id));
+      if(!row||row.phase==='final'||row.phase==='locked')continue;
+      row.home_score=Number(edit.home_score);
+      row.away_score=Number(edit.away_score);
+      row.manual_override=true;
+      row.manual_updated_at=edit.updated_at;
+      if(row.phase==='syncing')row.phase='live';
+    }
 
     mc3Data={
-      feed,history,rows,
+      feed,history,rows,manual,
       standings:ctx.standings||[],
       current_user_id:ctx.current_user_id||mc3UserId,
       fetched_at:feed.fetched_at||new Date().toISOString()
@@ -442,6 +460,8 @@ function mc3MeaningfulSignature(d){
     r.phase,
     r.home_score??'',
     r.away_score??'',
+    r.manual_override?'owner':'provider',
+    r.manual_updated_at||'',
     r.appFixture?.result_home_score??'',
     r.appFixture?.result_away_score??'',
     (r.appFixture?.predictions||[]).length
@@ -454,7 +474,8 @@ function mc3MeaningfulSignature(d){
     x.correct_outcomes
   ].join(':')).join('|');
 
-  return rows+'||'+table;
+  const ownerMatches=(d?.manual?.eligible||[]).map(x=>x.fixture_id).join('|');
+  return rows+'||'+table+'||'+Boolean(d?.manual?.is_owner)+'||'+ownerMatches;
 }
 
 function mc3UpdateLiveLabels(d){
@@ -531,6 +552,10 @@ function mc3Game(row){
         <div class="mc3Team away">${mc3Esc(h.away_team||row.away_team)}</div>
       </div>
 
+      ${row.manual_override?
+        `<div style="background:#eafaf3;color:#20674c;padding:8px 10px;margin:8px 0;border-radius:10px;font-size:10px;font-weight:850">✍️ Owner live update · ${mc3Esc(mc3FmtTime(row.manual_updated_at))} · provisional</div>`:''}
+      ${mc3Data?.manual?.is_owner&&(mc3Data.manual.eligible||[]).some(e=>String(e.fixture_id)===String(h.fixture_id))
+        ?`<button type="button" data-plp-owner-live-open="${mc3Esc(h.fixture_id)}" class="mc3Refresh" style="display:block;margin:2px 0 9px;background:#4b269d;color:#fff">✏️ Update this score</button>`:''}
       <div class="mc3Mine">
         <div class="mc3MineText"><b>Your prediction</b>${myPick?mc3Esc(myPick):'No prediction recorded for this match'}${row.phase==='locked'?'<br><span style="font-size:8px;color:#817d8d">Locked and now visible to the league</span>':''}</div>
         ${row.phase==='locked'?'<span class="mc3Pts none">Locked</span>':mc3PointsPill(myPts,row.phase)}
@@ -662,7 +687,11 @@ function mc3ProviderBar(d){
     <div><b>${liveOk?'⚡':'↻'} ${mc3Esc(src)}</b>
       <span>${liveOk?'Live scores connected':'Locked picks available · live score provider will keep retrying'} · updated ${mc3Esc(stamp)}</span>
     </div>
-    <button type="button" class="mc3Refresh" data-mc3-refresh>↻ Refresh</button>
+    <div style="display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px">
+      ${d?.manual?.is_owner&&(d.manual.eligible||[]).length
+        ?'<button type="button" class="mc3Refresh" data-plp-owner-live-open style="background:#4b269d;color:#fff">✏️ Update live score</button>':''}
+      <button type="button" class="mc3Refresh" data-mc3-refresh>↻ Refresh</button>
+    </div>
   </div>`;
 }
 
@@ -903,6 +932,15 @@ function mc3Schedule(){
 
 mc3Css();
 window.openPLPMatchCentre=mc3Open;
+window.getPLPManualLiveContext=()=>({manual:mc3Data?.manual||null,rows:(mc3Data?.rows||[]).map(x=>({
+  fixture_id:x.appFixture?.fixture_id||x.app_fixture_id||null,
+  home_score:x.home_score,away_score:x.away_score,
+  phase:x.phase,manual_override:!!x.manual_override
+}))});
+window.refreshPLPMatchCentreAfterScore=async()=>{
+ mc3Data=null;mc3FetchedAt=0;mc3LastRenderSignature=null;
+ if(document.querySelector('.mc3Overlay'))await mc3Render(true,false);
+};
 window.closePLPMatchCentre=mc3Close;
 
 window.addEventListener('focus',()=>mc3Sync(true));
