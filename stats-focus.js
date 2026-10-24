@@ -44,7 +44,7 @@ function sfCss(){
   s.textContent=`
     .sfHost{margin-bottom:14px}
     .sfLegacyHidden,.ljs2-playerHost,.sdHost{display:none!important}
-    .sfTabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;background:#eceaf3;border:1px solid #dfdce8;padding:4px;border-radius:15px;margin-bottom:12px;position:sticky;top:6px;z-index:9;box-shadow:0 5px 18px rgba(30,20,70,.08)}
+    .sfTabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;background:#eceaf3;border:1px solid #dfdce8;padding:4px;border-radius:15px;margin-bottom:12px;position:sticky;top:6px;z-index:9;box-shadow:0 5px 18px rgba(30,20,70,.08)}
     .sfTab{border:0;background:transparent;color:#6e697b;border-radius:11px;padding:10px 8px;font-size:11px;font-weight:950;cursor:pointer}
     .sfTab.active{background:#fff;color:#241153;box-shadow:0 3px 10px rgba(35,20,80,.10)}
     .sfCard{background:#fff;border:1px solid #e8e7ef;border-radius:18px;padding:15px;margin-bottom:12px;box-shadow:0 8px 24px rgba(25,18,65,.055)}
@@ -961,6 +961,7 @@ function sfLeagueHtml(agg=null){
     <div class="sfCard">
       <div class="sfHead"><h3>⚽ Club insights</h3><span>Which teams help — and hurt — our scores?</span></div>
       ${clubHtml}
+      <button type="button" data-sf-mode="teams" class="sfTab" style="background:#f0eafa;color:#4b269d;margin-top:12px;width:100%;padding:12px;font-size:12px">⚽ Explore all teams &amp; player rankings →</button>
     </div>
 
     <div class="sfCard">
@@ -1034,15 +1035,23 @@ function sfHideLegacy(header){
 }
 
 function sfTabs(){
-  return `<div class="sfTabs" role="tablist" aria-label="Statistics view"><button class="sfTab ${sfMode==='self'?'active':''}" data-sf-mode="self" role="tab" aria-selected="${sfMode==='self'}">👤 My Stats</button><button class="sfTab ${sfMode==='league'?'active':''}" data-sf-mode="league" role="tab" aria-selected="${sfMode==='league'}">🌍 League Stats</button></div>`;
+  return `<div class="sfTabs" role="tablist" aria-label="Statistics view"><button class="sfTab ${sfMode==='self'?'active':''}" data-sf-mode="self" role="tab" aria-selected="${sfMode==='self'}">👤 My Stats</button><button class="sfTab ${sfMode==='league'?'active':''}" data-sf-mode="league" role="tab" aria-selected="${sfMode==='league'}">🌍 League Stats</button><button class="sfTab ${sfMode==='teams'?'active':''}" data-sf-mode="teams" role="tab" aria-selected="${sfMode==='teams'}">⚽ Team Stats</button></div>`;
 }
 
 async function sfRender(host){
   if(!host?.isConnected)return;
   const keepHeight=Math.max(0,Math.round(host.getBoundingClientRect().height||0));
   if(keepHeight>120)host.style.minHeight=keepHeight+'px';
-  host.innerHTML=sfTabs()+`<div class="sfLoading">Building ${sfMode==='self'?'your stats':'league stats'}…</div>`;
+  host.innerHTML=sfTabs()+`<div class="sfLoading">Building ${sfMode==='self'?'your stats':sfMode==='teams'?'team stats':'league stats'}…</div>`;
   try{
+    if(sfMode==='teams'){
+      if(typeof window.renderPLPTeamStats!=='function'){
+        host.innerHTML=sfTabs()+'<div class="sfError">Team Stats are loading. Please reopen this tab.</div>';
+      }else{
+        await window.renderPLPTeamStats(host,sfTabs());
+      }
+      return;
+    }
     await sfLoadCore(false);
     if(!host.isConnected)return;
     if(sfMode==='self'){
@@ -1105,7 +1114,7 @@ document.addEventListener('click',e=>{
   const btn=e.target.closest?.('[data-sf-mode]');
   if(!btn)return;
   const mode=btn.dataset.sfMode;
-  if(!['self','league'].includes(mode)||mode===sfMode)return;
+  if(!['self','league','teams'].includes(mode)||mode===sfMode)return;
   sfMode=mode;
   const host=document.querySelector('.sfHost');
   if(host){host.dataset.sfRendered='0';sfRender(host)}
