@@ -1106,6 +1106,41 @@ async function mgPopulateScopeSelectors(dayOverride=null){
   const scope=o.querySelector('[data-mg-scope].active')?.dataset.mgScope||'matchday';
   const c=await mgContext();
 
+  if(['week_so_far','preweek','preday'].includes(scope)){
+    const weekSelect=o.querySelector('[data-mg-week]');
+    const predaySelect=o.querySelector('[data-mg-preday]');
+    const requestedDay=scope==='preday'?predaySelect?.value||null:null;
+    const requestedWeek=scope!=='preday'?(Number(weekSelect?.value)||null):null;
+    const {data,error}=await mgSb.rpc('get_owner_message_story_period',{
+      p_league_id:c.leagueId,p_mode:scope,
+      p_day:requestedDay,p_matchweek:requestedWeek
+    });
+    if(error)throw error;
+    if(scope==='preday'){
+      const days=mgArr(data?.available_days).filter(x=>mgNum(x.upcoming_count)>0);
+      const picked=days.some(x=>x.date===requestedDay)?requestedDay:data?.selected_date;
+      predaySelect.innerHTML=days.map(x=>
+        '<option value="'+mgEsc(x.date)+'" '+(String(x.date)===String(picked)?'selected':'')+'>'+
+        mgEsc(mgDateLabel(x.date))+' · '+mgNum(x.upcoming_count)+' upcoming</option>'
+      ).join('')||'<option value="">No upcoming dates</option>';
+    }else{
+      const weeks=mgArr(data?.available_weeks);
+      const options=scope==='preweek'
+        ?weeks.filter(x=>mgNum(x.upcoming_count)>0)
+        :weeks.filter(x=>mgNum(x.completed_count)+mgNum(x.upcoming_count)>0);
+      const nextFresh=options.find(x=>mgNum(x.completed_count)===0 &&
+        mgNum(x.upcoming_count)===mgNum(x.fixtures_count));
+      const preferred=options.some(x=>mgNum(x.matchweek)===requestedWeek)?requestedWeek:
+        scope==='preweek'?(nextFresh?.matchweek||data?.matchweek):data?.matchweek;
+      weekSelect.innerHTML=options.map(x=>
+        '<option value="'+mgNum(x.matchweek)+'" '+(mgNum(x.matchweek)===mgNum(preferred)?'selected':'')+'>'+
+        'Matchweek '+mgNum(x.matchweek)+' · '+mgNum(x.completed_count)+' finished · '+
+        mgNum(x.upcoming_count)+' upcoming</option>'
+      ).join('')||'<option value="">No matchweeks available</option>';
+    }
+    return;
+  }
+
   if(scope==='matchday'||scope==='match'){
     const rawDay=dayOverride||o.querySelector('[data-mg-day]')?.value||'';
     const currentDay=/^\d{4}-\d{2}-\d{2}$/.test(String(rawDay))?String(rawDay):null;
