@@ -356,7 +356,8 @@ function mgExacts(d){
   };
   if(d.scope==='matchweek'||d.scope==='week_so_far')return {
     total:mgNum(d.base.week_stats?.total_exacts),
-    stars:mgArr(d.base.exact_stars)
+    stars:mgArr(d.base.exact_stars).length?mgArr(d.base.exact_stars):
+      d.form.filter(x=>mgNum(x.exacts)>0&&mgNum(x.exacts)===Math.max(...d.form.map(y=>mgNum(y.exacts))))
   };
   const total=d.form.reduce((a,x)=>a+mgNum(x.exacts),0);
   const high=Math.max(0,...d.form.map(x=>mgNum(x.exacts)));
@@ -460,7 +461,8 @@ function mgIntro(s,d){
     let line='⚽ *Matchweek '+mgNum(b.matchweek)+' — so far*\n'+done+'/'+total+' full time';
     if(live)line+=' · '+live+' live';
     if(pending)line+=' · '+pending+' still to come';
-    return line+'.'+(s.tone==='banter'?'\nThe table is moving and the excuses are warming up. 😄':'');
+    return line+'.'+(live?' Live points are provisional.':'')+
+      (s.tone==='banter'?'\nThe table is moving and the excuses are warming up. 😄':'');
   }
 
   if(d.scope==='prematch'){
@@ -914,12 +916,39 @@ function mgPrePeriodMessage(s,d){
   return message.trim();
 }
 
+
+function mgWeekProgressSection(s,d){
+  const games=mgArr(d.base?.fixtures),ended=games.filter(f=>f.score_state==='final'),
+    live=games.filter(f=>f.score_state==='live'),
+    remaining=games.filter(f=>f.score_state==='upcoming');
+  const take=s.length==='long'?6:s.length==='medium'?3:2;
+  const blocks=[];
+  if(ended.length){
+    const recent=ended.slice(-take).map(f=>
+      f.home_team+' '+mgNum(f.result_home_score)+'–'+mgNum(f.result_away_score)+' '+f.away_team);
+    blocks.push('✅ *Full-time results so far*\n'+recent.join('\n')+
+      (ended.length>recent.length?'\n+ '+(ended.length-recent.length)+' earlier results':''));
+  }
+  if(live.length){
+    blocks.push('🔴 *Live — provisional*\n'+live.slice(0,take).map(f=>
+      f.home_team+' '+mgNum(f.result_home_score)+'–'+mgNum(f.result_away_score)+' '+f.away_team+
+      ' (as it stands)').join('\n'));
+  }
+  if(remaining.length){
+    blocks.push('⏭️ *Still to come*\n'+remaining.slice(0,take).map(f=>
+      f.home_team+' v '+f.away_team+' · '+mgDateLabel(f.kickoff_at)+' '+mgUKTime(f.kickoff_at)
+    ).join('\n')+(remaining.length>take?'\n+ '+(remaining.length-take)+' more fixtures':''));
+  }
+  return blocks.join('\n\n');
+}
+
 function mgBuild(s,d){
   if(d.scope==='preweek'||d.scope==='preday')return mgPrePeriodMessage(s,d);
   mgSeed++;
   const focus=mgChooseFocus(s,d);
   const sections=[];
   sections.push(mgIntro(s,d));
+  if(d.scope==='week_so_far')sections.push(mgWeekProgressSection(s,d));
   if(s.prompt)sections.push(mgPromptSection(s,d));
 
   if(d.scope==='prematch'){
