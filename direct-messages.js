@@ -121,6 +121,7 @@ function dmOpenContacts(){
 }
 function dmRenderContacts(){
  const el=dmModal(),head=el.querySelector('#dm-modal-head'),body=el.querySelector('#dm-modal-content'),compose=el.querySelector('#dm-modal-compose');
+ body.className='dmList';
  head.innerHTML='<h2>✉️ Private messages</h2><button class="dmClose" data-dm-action="close">✕</button>';
  compose.innerHTML='';
  if(dmInbox?.is_owner){
