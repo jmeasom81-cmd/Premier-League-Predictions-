@@ -816,7 +816,106 @@ function mgRandomStat(s,d){
   if(!stats.length)return '';
   return `${mgEmoji('📊',s.emoji)}Random stat: ${mgPick(stats,5)}`;
 }
+
+function mgUKTime(v){
+  if(!v)return '';
+  try{return new Intl.DateTimeFormat('en-GB',{
+    timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'
+  }).format(new Date(v))}
+  catch{return ''}
+}
+function mgPrePeriodMessage(s,d){
+  const b=d.base||{},week=d.scope==='preweek';
+  const label=week?'Matchweek '+mgNum(b.matchweek):mgDateLabel(b.selected_date);
+  const fixtures=mgArr(b.fixtures).filter(x=>new Date(x.kickoff_at).getTime()>Date.now())
+    .sort((a,b)=>new Date(a.kickoff_at)-new Date(b.kickoff_at));
+  if(!fixtures.length)return 'No upcoming games in this selection. Choose another matchweek or matchday.';
+  const first=mgArr(b.top_three)[0],second=mgArr(b.top_three)[1];
+  const banter=s.tone==='banter',balanced=s.tone==='balanced';
+  const short=s.length==='short',long=s.length==='long';
+  const top=short?2:long?fixtures.length:Math.min(5,fixtures.length);
+  const opening=week?[
+    '⚽ *'+label+' — fresh fixtures, fresh excuses!*',
+    '🔥 *'+label+' is approaching. Everyone is suddenly a football expert.*',
+    '👀 *'+label+' — let the prediction mind games begin!*'
+  ]:[
+    '⚽ *'+label+' — matchday incoming!*',
+    '🔥 *'+label+' — prediction receipts at the ready!*',
+    '👀 *'+label+' — the football is nearly here!*'
+  ];
+  const output=[];
+  output.push(banter?mgPick(opening,1):
+    '*'+label+(week?' — pre-matchweek':' — pre-matchday')+' preview*');
+  const joke=week?[
+    'There are '+fixtures.length+' matches ahead and '+mgNum(b.players_count)+' supposed experts. This can only go well. 😂',
+    'New round, same confident scorelines and apparently no lessons learned from last weekend. 😄',
+    'Another week of bold calls, questionable 4–0 predictions and heroic excuses.'
+  ]:[
+    fixtures.length+' games on the menu. Expect confidence before kick-off and selective memories by full time. 😂',
+    'The fixtures are lined up. All we need now is someone to confidently predict a 5–0. 😄',
+    'Plenty of football ahead. The group chat should be an interesting place by full time.'
+  ];
+  output.push(banter?mgPick(joke,2):'We have '+fixtures.length+' upcoming '+
+    (fixtures.length===1?'fixture':'fixtures')+'. Plenty to discuss before kick-off.');
+  if(!short||s.detail==='high'){
+    const upcoming=fixtures.slice(0,top).map(f=>
+      '• '+f.home_team+' v '+f.away_team+' · '+mgDateLabel(f.kickoff_at)+' '+mgUKTime(f.kickoff_at));
+    output.push((banter?'📋 *Matches to get excited about*':'📋 *Upcoming fixtures*')+'\n'+
+      upcoming.join('\n')+(fixtures.length>top?'\n+ '+(fixtures.length-top)+' more in the app':''));
+  }
+  if(first&&(s.table||!short||s.focuses.includes('table'))){
+    const gap=second?Math.max(0,mgNum(first.points)-mgNum(second.points)):0;
+    const jibes=[
+      mgName(first)+' leads the league on '+mgNum(first.points)+' points. '+
+        (second?mgName(second)+' is '+gap+' point'+(gap===1?'':'s')+' behind.':'Who can catch them?')+
+        ' The bragging rights are on borrowed time. 👀',
+      mgName(first)+' is the one to beat right now. '+
+        (second?'Can '+mgName(second)+' close the gap this round?':'Will someone finally catch up?'),
+      mgName(first)+' is sitting pretty at the top with '+mgNum(first.points)+
+        ' pts. Enjoy it while it lasts! 😂'
+    ];
+    output.push('🏆 *League rivalries*\n'+(banter?mgPick(jibes,3):
+      mgArr(b.top_three).slice(0,3).map((p,i)=>(i+1)+'. '+mgName(p)+
+        ' — '+mgNum(p.points)+' pts').join('\n')));
+  }
+  if(!short){
+    const next=fixtures.find(f=>f.prediction_lock_at && new Date(f.prediction_lock_at)>new Date());
+    if(next){
+      output.push((banter?'⏰ *No “I forgot” excuses!*':'⏰ *Next prediction deadline*')+
+        '\n'+mgDateLabel(next.prediction_lock_at)+' · '+mgUKTime(next.prediction_lock_at)+
+        ' UK time ('+next.home_team+' v '+next.away_team+').');
+    }else{
+      output.push('⏰ Check the app for each game’s prediction deadline.');
+    }
+  }
+  if(banter){
+    const challenges=s.mood==='stir'?[
+      '🎤 Who’s brave enough to call the upset, and who’s going to pretend it was obvious afterwards?',
+      '👀 Which big talker will go quiet when the points start rolling in?',
+      '😂 Predictions in early, excuses prepared later. Who’s calling a wild score?'
+    ]:[
+      '🎤 Who’s backing an upset this '+(week?'week':'matchday')+'?',
+      '👀 Who’s your banker, and who’s about to drop a shocker?',
+      '💬 Give us your bold call before the games start!'
+    ];
+    output.push(mgPick(challenges,4));
+  }else if(balanced){
+    output.push('💬 Any bold calls or surprises? Get the debate going.');
+  }
+  if(s.prompt){
+    output.push('🎙️ *Talking point*\n'+String(s.prompt).replace(/\s+/g,' ').slice(0,180));
+  }
+  if(s.random&&long&&banter){
+    output.push('🍀 The only guarantee? Someone will blame the referee for missing an exact score.');
+  }
+  if(s.link)output.push('📲 Make your predictions:\n'+MG_APP);
+  let message=output.filter(Boolean).join('\n\n');
+  if(s.emoji==='none')message=message.replace(/[⚽🌟🔥📈🚀📉🎯😬🍀🏆🧠🤦📊👀😂😄🔒🔮🥶📋⏰🎤💬🎙️]/gu,'').replace(/^\s+/gm,'');
+  return message.trim();
+}
+
 function mgBuild(s,d){
+  if(d.scope==='preweek'||d.scope==='preday')return mgPrePeriodMessage(s,d);
   mgSeed++;
   const focus=mgChooseFocus(s,d);
   const sections=[];
