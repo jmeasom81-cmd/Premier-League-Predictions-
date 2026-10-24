@@ -1182,9 +1182,15 @@ async function mgScopeChanged(){
   const dayWrap=o.querySelector('.mgDayWrap');
   const matchWrap=o.querySelector('.mgMatchWrap');
   const preWrap=o.querySelector('.mgPreMatchWrap');
+  const weekWrap=o.querySelector('.mgWeekWrap');
+  const predayWrap=o.querySelector('.mgPreDayWrap');
+  if(['week_so_far','preweek'].includes(scope))o.querySelector('[data-mg-week]').value='';
   dayWrap.style.display=(scope==='matchday'||scope==='match')?'block':'none';
   matchWrap.style.display=scope==='match'?'block':'none';
   preWrap.style.display=scope==='prematch'?'block':'none';
+  weekWrap.style.display=['week_so_far','preweek'].includes(scope)?'block':'none';
+  predayWrap.style.display=scope==='preday'?'block':'none';
+  o.querySelector('.mgOutput')?.classList.remove('ready');
   mgData=null;
   try{
     await mgPopulateScopeSelectors();
@@ -1210,18 +1216,22 @@ async function mgGenerate(regen=false){
   const o=document.querySelector('.mgOverlay');if(!o)return;
   const btn=o.querySelector('[data-mg-generate]');
   const s=mgSettings();
-  const day=(s.scope==='matchday'||s.scope==='match')?o.querySelector('[data-mg-day]')?.value||null:null;
+  const day=(s.scope==='matchday'||s.scope==='match')?o.querySelector('[data-mg-day]')?.value||null:
+    s.scope==='preday'?o.querySelector('[data-mg-preday]')?.value||null:null;
+  const matchweek=['week_so_far','preweek'].includes(s.scope)?Number(o.querySelector('[data-mg-week]')?.value)||null:null;
   const fixture=s.scope==='match'
     ?o.querySelector('[data-mg-match]')?.value||null
     :s.scope==='prematch'
       ?o.querySelector('[data-mg-prematch]')?.value||null
       :null;
   if((s.scope==='match'||s.scope==='prematch')&&!fixture){mgToast('Choose a match first');return}
+  if(['week_so_far','preweek'].includes(s.scope)&&!matchweek){mgToast('Choose a matchweek first');return}
+  if(s.scope==='preday'&&!day){mgToast('Choose a matchday first');return}
   mgBusy=true;
   if(btn){btn.disabled=true;btn.textContent='Building from league data…'}
   try{
     if(!mgData||mgData.scope!==s.scope||regen===false){
-      mgData=await mgLoad(s.scope,day,fixture);
+      mgData=await mgLoad(s.scope,day,fixture,matchweek);
     }
     const out=mgBuild(s,mgData);
     mgLastTitle=mgTitleFor(mgData);mgLastMessage=out;
@@ -1248,20 +1258,30 @@ async function mgOpen(){
   o.innerHTML=`<div class="mgShell">
     <div class="mgHead"><div class="mgHeadTop">
       <div><div class="mgEyebrow">League owner · communications</div><div class="mgTitle">Message Generator</div>
-      <div class="mgSub">Individual match · day so far · pre-match prediction analysis · matchweek · form. Nothing is sent automatically.</div></div>
+      <div class="mgSub">Matchweek so far · pre-matchweek banter · pre-matchday banter · match analysis. Nothing is sent automatically.</div></div>
       <button type="button" class="mgClose">✕</button>
     </div></div>
 
     <div class="mgBody">
       <div class="mgPanel">
         <div class="mgPanelHead"><h2>1 · What are we talking about?</h2><span>Scope</span></div>
+        <div class="mgLabel">New · Matchweek &amp; matchday messages</div>
+        <div class="mgChoices">
+          <button class="mgChoice active" data-mg-scope="week_so_far">📊 Matchweek so far</button>
+          <button class="mgChoice" data-mg-scope="preweek">🔥 Pre-matchweek message</button>
+          <button class="mgChoice" data-mg-scope="preday">⚽ Pre-matchday message</button>
+        </div>
+        <div class="mgHint">Pre-match messages are fun, fixture-led group banter — not results reports. Matchweek so far includes finished and live games with matches still to come.</div>
+        <div class="mgLabel">Other reports</div>
         <div class="mgChoices">
           <button class="mgChoice" data-mg-scope="match">⚽ Individual match</button>
-          <button class="mgChoice active" data-mg-scope="matchday">📅 Day so far</button>
-          <button class="mgChoice" data-mg-scope="prematch">🔒 Pre-match</button>
-          <button class="mgChoice" data-mg-scope="matchweek">Match week</button>
+          <button class="mgChoice" data-mg-scope="matchday">📅 Day so far</button>
+          <button class="mgChoice" data-mg-scope="prematch">🔒 Pre-match · one match</button>
+          <button class="mgChoice" data-mg-scope="matchweek">Completed matchweek</button>
           <button class="mgChoice" data-mg-scope="last6">Last 6 game weeks · form</button>
         </div>
+        <div class="mgWeekWrap" style="display:none"><div class="mgLabel">Matchweek</div><select class="mgSelect" data-mg-week><option value="">Loading matchweeks…</option></select></div>
+        <div class="mgPreDayWrap" style="display:none"><div class="mgLabel">Upcoming matchday</div><select class="mgSelect" data-mg-preday><option value="">Loading dates…</option></select></div>
         <div class="mgDayWrap"><div class="mgLabel">Day</div><select class="mgSelect" data-mg-day><option value="">Loading…</option></select></div>
         <div class="mgMatchWrap" style="display:none"><div class="mgLabel">Match</div><select class="mgSelect" data-mg-match><option value="">Choose a day first</option></select></div>
         <div class="mgPreMatchWrap" style="display:none"><div class="mgLabel">Locked fixture</div><select class="mgSelect" data-mg-prematch><option value="">Loading…</option></select><div class="mgHint">Pre-match analysis uses sealed predictions after the 4-hour lock and before kickoff.</div></div>
@@ -1365,6 +1385,8 @@ async function mgOpen(){
   });
   o.querySelector('[data-mg-match]').addEventListener('change',()=>{mgData=null});
   o.querySelector('[data-mg-prematch]').addEventListener('change',()=>{mgData=null});
+  o.querySelector('[data-mg-week]').addEventListener('change',()=>{mgData=null});
+  o.querySelector('[data-mg-preday]').addEventListener('change',()=>{mgData=null});
   await mgScopeChanged();
 }
 
