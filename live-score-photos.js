@@ -1,5 +1,5 @@
-// LIVE SCORE PHOTOS V1
-// Admin posts match-linked photos; active competitors see a private gallery.
+// MATCHDAY PHOTOS + VIDEOS V2
+// Owner posts photos and short clips; active members see a private gallery.
 // All media is held in a private Supabase bucket and read with short-lived signed URLs.
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 const lspSb=createClient('https://jzrbaeyvwagrwukntjbk.supabase.co','sb_publishable_OVczf1AxPQfYdwynkVlwaQ_9fdB9ij8');
@@ -13,6 +13,8 @@ const lspPhotos=()=>lspArr(lspGallery?.photos);
 const lspFixtures=()=>lspArr(lspGallery?.fixtures);
 const lspPhotoById=id=>lspPhotos().find(p=>p.id===id);
 const lspPhotoUrl=p=>p?.signed_url||'';
+const lspIsVideo=p=>p?.media_type==='video';
+const lspVideoLimit=45*1024*1024;
 
 function lspStyle(){
  if(document.getElementById('lsp-style'))return;
@@ -27,6 +29,11 @@ function lspStyle(){
  '.lspStrip{display:flex;gap:10px;overflow-x:auto;overscroll-behavior-inline:contain;padding:4px 2px 7px;scroll-snap-type:x proximity}',
  '.lspThumb{background:#fcfbff;border:1px solid #e8e1f5;border-radius:12px;flex:0 0 min(58vw,195px);overflow:hidden;cursor:pointer;text-align:left;scroll-snap-align:start;padding:0}',
  '.lspThumb img{width:100%;height:125px;object-fit:cover;background:#eeebf3;display:block}',
+'.lspVideoTile{height:125px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#2d1757,#6948ad);color:#fff;font-weight:850}',
+'.lspVideoTile b{font-size:36px}.lspVideoTile small{font-size:11px;color:#eee8ff}',
+'.lspVideoPlayer{max-height:63dvh;width:100%;object-fit:contain;display:block;border-radius:11px;background:#111}',
+'.lspUploading{border:1px solid #ded4ec;background:#f7f4fc;padding:10px;border-radius:10px;margin:10px 0}',
+'.lspProgress{display:block;width:100%;height:9px;accent-color:#4b269d}',
  '.lspThumbText{padding:9px;font-size:11px;line-height:1.35;color:#352b47}',
  '.lspThumbText strong{display:block;margin-bottom:4px}.lspCaption{display:block;color:#746d82;margin-top:4px;font-size:10px}',
  '.lspBackdrop{position:fixed;inset:0;z-index:15500;background:#100d20bf;display:flex;align-items:flex-end;justify-content:center}',
@@ -83,19 +90,19 @@ function lspMarkup(){
  const photos=lspPhotos(),owner=!!lspGallery?.is_owner;
  if(!owner&&!photos.length)return '';
  return '<section class="lspPanel" data-lsp-panel>'+
- '<div class="lspHead"><div><h2>📸 Matchday pictures</h2><div class="lspHint">Photos alongside the live scores · tap to view full size</div></div>'+
- '<span class="lspCount">'+photos.length+' photo'+(photos.length===1?'':'s')+'</span></div>'+
+ '<div class="lspHead"><div><h2>📸 Matchday photos &amp; videos</h2><div class="lspHint">Images and clips alongside live scores · tap to view or play</div></div>'+
+ '<span class="lspCount">'+photos.length+' item'+(photos.length===1?'':'s')+'</span></div>'+
  (photos.length?
  '<div class="lspStrip">'+photos.map(p=>
   '<button type="button" class="lspThumb" data-lsp-view="'+lspEsc(p.id)+'">'+
-   (lspPhotoUrl(p)?'<img src="'+lspEsc(lspPhotoUrl(p))+'" loading="lazy" alt="'+lspEsc(p.home_team+' v '+p.away_team)+' photo">':'<div class="lspNotice">Photo unavailable</div>')+
+   (lspIsVideo(p)?'<div class="lspVideoTile"><b>▶</b><small>Play video'+(p.duration_seconds?' · '+Number(p.duration_seconds)+'s':'')+'</small></div>':  lspPhotoUrl(p)?'<img src="'+lspEsc(lspPhotoUrl(p))+'" loading="lazy" alt="'+lspEsc(p.home_team+' v '+p.away_team)+' photo">':'<div class="lspNotice">Photo unavailable</div>')+
    '<div class="lspThumbText"><strong>'+lspEsc(p.home_team)+' v '+lspEsc(p.away_team)+'</strong>'+
    (p.caption?'<span class="lspCaption">'+lspEsc(p.caption)+'</span>':'')+
    '<span class="lspCaption">'+lspEsc(lspTime(p.created_at))+'</span></div></button>'
  ).join('')+'</div>':
- '<p class="lspHint">No photos yet. Add the first matchday picture below.</p>')+
- (owner?'<button class="lspBtn" data-lsp-action="add">+ Add pictures · camera or gallery</button>'+
-  '<p class="lspHint">Only the league owner can upload or remove pictures.</p>':'')+
+ '<p class="lspHint">No photos or videos yet. Add your first matchday moment below.</p>')+
+ (owner?'<button class="lspBtn" data-lsp-action="add">+ Add photos or videos</button>'+
+  '<p class="lspHint">Only the league owner can upload or remove matchday media.</p>':'')+
  '</section>';
 }
 function lspMount(){
@@ -111,7 +118,7 @@ function lspMount(){
   }
   const photos=lspPhotos(),signature=JSON.stringify([
    !!lspGallery.is_owner,
-   ...photos.map(p=>[p.id,p.caption,p.signed_url]),
+   ...photos.map(p=>[p.id,p.caption,p.signed_url,p.media_type,p.duration_seconds]),
   ]);
   if(slot.dataset.lspSignature===signature)continue;
   slot.innerHTML=lspMarkup();
@@ -134,16 +141,18 @@ function lspOpenAdd(){
  lspSelected=fixtures.some(f=>f.id===lspSelected)?lspSelected:nearest.id;
  const choices=fixtures.map(f=>'<option value="'+lspEsc(f.id)+'" '+(f.id===lspSelected?'selected':'')+'>'+
   lspEsc(f.home_team)+' v '+lspEsc(f.away_team)+' · '+lspEsc(lspTime(f.kickoff_at))+'</option>').join('');
- lspDialogBase('📸 Add matchday pictures',
-  '<p class="lspNotice">Choose a match, then take a picture or select several from your phone gallery. Only league members can view them.</p>'+
+ lspDialogBase('📸 Add photos or videos',
+  '<p class="lspNotice">Choose a match, then add photos or a video from your phone. Only active league members can view them.</p>'+
   '<label class="lspField" for="lsp-fixture">Attach pictures to match</label><select id="lsp-fixture" class="lspSelect">'+choices+'</select>'+
   '<label class="lspField" for="lsp-caption">Caption (optional)</label>'+
   '<input id="lsp-caption" class="lspInput" maxlength="240" placeholder="Goal celebration, matchday moment…">'+
-  '<div class="lspActions"><button type="button" class="lspBtn" data-lsp-action="pick-gallery">🖼️ Choose from gallery</button>'+
-  '<button type="button" class="lspBtn alt" data-lsp-action="pick-camera">📷 Take photo</button></div>'+
+  '<div class="lspActions"><button type="button" class="lspBtn" data-lsp-action="pick-gallery">🖼️ Choose photos</button>'+
+  '<button type="button" class="lspBtn alt" data-lsp-action="pick-camera">📷 Take photo</button>'+ 
+  '<button type="button" class="lspBtn alt" data-lsp-action="pick-video">🎬 Choose video</button></div>'+
   '<input type="file" id="lsp-gallery-files" accept="image/*" multiple hidden>'+
-  '<input type="file" id="lsp-camera-file" accept="image/*" capture="environment" hidden>'+
-  '<p class="lspHint">Up to 8 photos per selection, automatically resized for quick loading. Photos do not change match scores or prediction results.</p>'+
+  '<input type="file" id="lsp-camera-file" accept="image/*" capture="environment" hidden>'+ 
+  '<input type="file" id="lsp-video-file" accept="video/mp4,video/webm,video/quicktime,.mp4,.mov,.webm" hidden>'+
+  '<p class="lspHint">Up to 8 photos (resized automatically), or one video at a time: MP4/WebM/MOV, up to 45 MB and 90 seconds. Videos upload in chunks; keep this screen open until complete. Media does not affect scores or points.</p>'+
   '<div id="lsp-upload-status" aria-live="polite"></div>'
  );
 }
@@ -177,32 +186,113 @@ async function lspCompress(file){
   if(objectUrl)URL.revokeObjectURL(objectUrl);
  }
 }
+
+function lspVideoFormat(file){
+ const name=String(file?.name||'').toLowerCase();
+ const mime=String(file?.type||'').toLowerCase();
+ if(mime==='video/mp4'||name.endsWith('.mp4')||name.endsWith('.m4v'))
+   return {type:'video/mp4',ext:'mp4'};
+ if(mime==='video/webm'||name.endsWith('.webm'))
+   return {type:'video/webm',ext:'webm'};
+ if(mime==='video/quicktime'||name.endsWith('.mov'))
+   return {type:'video/quicktime',ext:'mov'};
+ throw Error('Choose an MP4, WebM or MOV video. Other formats are not supported.');
+}
+async function lspVideoMetadata(file){
+ if(!file||!file.size)throw Error('Choose a video from your gallery.');
+ if(file.size>lspVideoLimit)throw Error('This video is over 45 MB. Trim or compress it in your phone gallery first.');
+ const format=lspVideoFormat(file);
+ return new Promise((resolve,reject)=>{
+  const preview=document.createElement('video');
+  let done=false;
+  const url=URL.createObjectURL(file);
+  const finish=(err,duration)=>{
+   if(done)return;done=true;
+   clearTimeout(timeout);
+   preview.pause();
+   preview.removeAttribute('src');
+   preview.load();
+   URL.revokeObjectURL(url);
+   err?reject(err):resolve({...format,duration_seconds:Math.ceil(duration)});
+  };
+  const timeout=setTimeout(()=>finish(Error('Could not read the video. Try saving it as MP4 first.')),15000);
+  preview.preload='metadata';preview.muted=true;preview.playsInline=true;
+  preview.onloadedmetadata=()=>{
+    const d=preview.duration;
+    if(!Number.isFinite(d)||d<=0)return finish(Error('Could not read the video length. Try another MP4 file.'));
+    if(d>90)return finish(Error('This video is longer than 90 seconds. Trim it before uploading.'));
+    finish(null,d);
+  };
+  preview.onerror=()=>finish(Error('This video cannot be previewed on your phone. Try MP4 (H.264).'));
+  preview.src=url;
+ });
+}
+async function lspResumableVideoUpload(file,path,mime){
+ const {data:{session}}=await lspSb.auth.getSession();
+ if(!session?.access_token)throw Error('Your session has expired. Please sign in again.');
+ let tus;
+ try{
+  tus=await import('https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/+esm');
+ }catch(e){throw Error('Could not start the video uploader. Please reconnect and try again.')}
+ return new Promise((resolve,reject)=>{
+  const upload=new tus.Upload(file,{
+   endpoint:'https://jzrbaeyvwagrwukntjbk.storage.supabase.co/storage/v1/upload/resumable',
+   headers:{authorization:'Bearer '+session.access_token,'x-upsert':'false'},
+   retryDelays:[0,3000,5000,10000,20000],
+   uploadDataDuringCreation:true,
+   removeFingerprintOnSuccess:true,
+   chunkSize:6*1024*1024,
+   metadata:{
+    bucketName:lspBucket,
+    objectName:path,
+    contentType:mime,
+    cacheControl:'86400'
+   },
+   onError:err=>reject(err),
+   onProgress:(sent,total)=>{
+    const percent=Math.min(100,Math.round(100*sent/total));
+    lspStatus('Uploading video… '+percent+'% ('+(sent/1024/1024).toFixed(1)+' MB of '+(total/1024/1024).toFixed(1)+' MB)');
+   },
+   onSuccess:()=>resolve()
+  });
+  upload.start();
+ });
+}
+
 function lspStatus(message,error=false){
  const host=document.getElementById('lsp-upload-status');
  if(host)host.innerHTML='<div class="'+(error?'lspError':'lspStatus')+'">'+lspEsc(message)+'</div>';
 }
-async function lspUpload(files){
+async function lspUpload(files,media='photo'){
  if(lspUploadBusy||!files?.length)return;
  const ctx=await lspContext();
- if(!ctx||!lspGallery?.is_owner){lspStatus('Only the league owner can add photos.',true);return}
+ if(!ctx||!lspGallery?.is_owner){lspStatus('Only the league owner can upload media.',true);return}
  const fixtureId=document.getElementById('lsp-fixture')?.value;
  if(!lspFixtures().some(f=>f.id===fixtureId)){lspStatus('Choose a match first.',true);return}
  const caption=(document.getElementById('lsp-caption')?.value||'').trim().slice(0,240);
  const selected=[...files];
- if(selected.length>8){lspStatus('Choose no more than 8 pictures at once.',true);return}
+ if(selected.length>(media==='video'?1:8)){lspStatus(media==='video'?'Choose one video at a time.':'Choose no more than 8 pictures at once.',true);return}
  lspSelected=fixtureId;lspUploadBusy=true;
  let added=0;
  try{
   for(const [i,file] of selected.entries()){
-   lspStatus('Uploading picture '+(i+1)+' of '+selected.length+'…');
-   const jpeg=await lspCompress(file);
-   const path=ctx.leagueId+'/'+fixtureId+'/'+ctx.uid+'/'+crypto.randomUUID()+'.jpg';
-   const {error:uploadError}=await lspSb.storage.from(lspBucket).upload(path,jpeg,{
-    contentType:'image/jpeg',cacheControl:'86400',upsert:false
-   });
-   if(uploadError)throw uploadError;
+   lspStatus((media==='video'?'Preparing video':'Preparing picture')+' '+(i+1)+' of '+selected.length+'…');
+   const details=media==='video'?await lspVideoMetadata(file):null;
+   const jpeg=media==='video'?null:await lspCompress(file);
+   const ext=details?.ext||'jpg';
+   const path=ctx.leagueId+'/'+fixtureId+'/'+ctx.uid+'/'+crypto.randomUUID()+'.'+ext;
+   if(media==='video'){
+    await lspResumableVideoUpload(file,path,details.type);
+   }else{
+    const {error:uploadError}=await lspSb.storage.from(lspBucket).upload(path,jpeg,{
+     contentType:'image/jpeg',cacheControl:'86400',upsert:false
+    });
+    if(uploadError)throw uploadError;
+   }
    const {error:metaError}=await lspSb.from('live_score_photos').insert({
-    league_id:ctx.leagueId,fixture_id:fixtureId,uploaded_by:ctx.uid,storage_path:path,caption
+    league_id:ctx.leagueId,fixture_id:fixtureId,uploaded_by:ctx.uid,storage_path:path,caption,
+    media_type:media==='video'?'video':'photo',
+    duration_seconds:details?.duration_seconds||null
    });
    if(metaError){
     await lspSb.storage.from(lspBucket).remove([path]);
@@ -210,13 +300,14 @@ async function lspUpload(files){
    }
    added++;
   }
-  lspStatus(added+' picture'+(added===1?'':'s')+' added! The league can now see '+(added===1?'it':'them')+'.');
+  lspStatus(added+' '+(media==='video'?'video': 'picture')+(added===1?'':'s')+' added! League members can now '+(media==='video'?'play': 'view')+(added===1?' it':' them')+'.');
  }catch(e){
   lspStatus((added?added+' saved; ':'')+(e.message||'Upload failed'),true);
  }finally{
   lspUploadBusy=false;lspAt=0;await lspLoad(true);
-  const g=document.getElementById('lsp-gallery-files'),c=document.getElementById('lsp-camera-file');
-  if(g)g.value='';if(c)c.value='';
+  for(const id of ['lsp-gallery-files','lsp-camera-file','lsp-video-file']){
+   const input=document.getElementById(id);if(input)input.value='';
+  }
  }
 }
 function lspOpenViewer(id){
@@ -227,7 +318,8 @@ function lspOpenViewer(id){
 function lspRenderViewer(){
  const photos=lspPhotos(),p=photos[lspMediaIndex];if(!p)return;
  const image=lspPhotoUrl(p);
- const body=(image?'<img class="lspZoom" src="'+lspEsc(image)+'" alt="'+lspEsc(p.home_team)+' v '+lspEsc(p.away_team)+' picture">':
+ const body=(image?(lspIsVideo(p)?'<video class="lspVideoPlayer" src="'+lspEsc(image)+'" controls playsinline preload="metadata"></video>':
+ '<img class="lspZoom" src="'+lspEsc(image)+'" alt="'+lspEsc(p.home_team)+' v '+lspEsc(p.away_team)+' picture">'):
  '<p class="lspNotice">The photo could not be opened. Please try refreshing.</p>')+
  '<p class="lspViewerCaption"><strong>'+lspEsc(p.home_team)+' v '+lspEsc(p.away_team)+'</strong>'+
  (p.caption?'\n'+lspEsc(p.caption):'')+'</p>'+
@@ -235,14 +327,14 @@ function lspRenderViewer(){
  (photos.length>1?'<button class="lspBtn alt" data-lsp-action="prev">← Previous</button>'+
  '<span class="lspHint">'+(lspMediaIndex+1)+' of '+photos.length+'</span>'+
  '<button class="lspBtn alt" data-lsp-action="next">Next →</button>':'')+
- (lspGallery?.is_owner?'<button class="lspBtn danger" data-lsp-action="delete" data-lsp-id="'+lspEsc(p.id)+'">Remove picture</button>':'')+
+ (lspGallery?.is_owner?'<button class="lspBtn danger" data-lsp-action="delete" data-lsp-id="'+lspEsc(p.id)+'">Remove '+(lspIsVideo(p)?'video':'picture')+'</button>':'')+
  '</div><div id="lsp-upload-status"></div>';
- lspDialogBase('Matchday photo',body);
+ lspDialogBase(lspIsVideo(p)?'🎬 Matchday video':'Matchday photo',body);
 }
 async function lspDelete(id){
  const p=lspPhotoById(id),ctx=await lspContext();
  if(!p||!ctx||!lspGallery?.is_owner)return;
- if(!confirm('Remove this picture from the league gallery for everyone?'))return;
+ if(!confirm('Remove this '+(lspIsVideo(p)?'video':'picture')+' from the league gallery for everyone?'))return;
  lspStatus('Removing picture…');
  const {error:storageError}=await lspSb.storage.from(lspBucket).remove([p.storage_path]);
  if(storageError){lspStatus(storageError.message||'Could not remove picture',true);return}
@@ -260,6 +352,7 @@ async function lspClick(e){
  if(action==='close'){document.getElementById('lsp-dialog')?.remove();return}
  if(action==='pick-gallery'){document.getElementById('lsp-gallery-files')?.click();return}
  if(action==='pick-camera'){document.getElementById('lsp-camera-file')?.click();return}
+ if(action==='pick-video'){document.getElementById('lsp-video-file')?.click();return}
  if(action==='prev'){lspMediaIndex=(lspMediaIndex+lspPhotos().length-1)%lspPhotos().length;lspRenderViewer();return}
  if(action==='next'){lspMediaIndex=(lspMediaIndex+1)%lspPhotos().length;lspRenderViewer();return}
  if(action==='delete')await lspDelete(btn.dataset.lspId);
@@ -275,8 +368,9 @@ function lspSchedule(){
 lspStyle();
 document.addEventListener('click',e=>{lspClick(e).catch(err=>console.warn('Live photos action',err))});
 document.addEventListener('change',e=>{
- if(e.target?.id==='lsp-gallery-files'||e.target?.id==='lsp-camera-file'){
-  lspUpload(e.target.files).catch(err=>lspStatus(err.message||'Upload failed',true));
+ if(['lsp-gallery-files','lsp-camera-file','lsp-video-file'].includes(e.target?.id)){
+  lspUpload(e.target.files,e.target.id==='lsp-video-file'?'video':'photo')
+    .catch(err=>lspStatus(err.message||'Upload failed',true));
  }
 });
 document.addEventListener('keydown',e=>{
