@@ -20,6 +20,7 @@ let sfEvidenceAt=0;
 let sfBusy=false;
 let sfTimer=null;
 let sfMode='self';
+let sfLeagueSection='overview';
 let sfWasActive=false;
 
 const sfEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({
@@ -44,10 +45,15 @@ function sfCss(){
   s.textContent=`
     .sfHost{margin-bottom:14px}
     .sfLegacyHidden,.ljs2-playerHost,.sdHost{display:none!important}
-    .sfTabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;background:#eceaf3;border:1px solid #dfdce8;padding:4px;border-radius:15px;margin-bottom:12px;position:sticky;top:6px;z-index:9;box-shadow:0 5px 18px rgba(30,20,70,.08)}
+    .sfTabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;background:#eceaf3;border:1px solid #dfdce8;padding:4px;border-radius:15px;margin-bottom:12px;position:sticky;top:6px;z-index:9;box-shadow:0 5px 18px rgba(30,20,70,.08)}
     .sfTab{border:0;background:transparent;color:#6e697b;border-radius:11px;padding:10px 8px;font-size:11px;font-weight:950;cursor:pointer}
-    @media(min-width:560px){.sfTabs{grid-template-columns:repeat(4,minmax(0,1fr))}}
+    @media(min-width:560px){.sfTabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
     .sfTab.active{background:#fff;color:#241153;box-shadow:0 3px 10px rgba(35,20,80,.10)}
+    .sfLeagueSections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:7px;border-radius:14px;background:#f6f3fb;border:1px solid #e4dfee;margin:2px 0 13px}
+    .sfLeagueSection{border:1px solid transparent;border-radius:10px;padding:11px 8px;background:transparent;color:#62567a;font-size:11px;font-weight:900;cursor:pointer;line-height:1.35;text-align:center}
+    .sfLeagueSection.active{background:#4b269d;border-color:#4b269d;color:#fff;box-shadow:0 3px 10px #41208028}
+    .sfLeagueSectionHelp{font-size:10px;line-height:1.5;color:#766a83;margin:0 0 11px;padding:0 4px}
+    @media(max-width:360px){.sfTab{font-size:10px;padding:9px 4px}}
     .sfCard{background:#fff;border:1px solid #e8e7ef;border-radius:18px;padding:15px;margin-bottom:12px;box-shadow:0 8px 24px rgba(25,18,65,.055)}
     .sfHero{background:linear-gradient(145deg,#fff,#f8f5ff);border-color:#ded5f1}
     .sfHead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:11px}
@@ -1036,14 +1042,23 @@ function sfHideLegacy(header){
 }
 
 function sfTabs(){
-  return `<div class="sfTabs" role="tablist" aria-label="Statistics view"><button class="sfTab ${sfMode==='self'?'active':''}" data-sf-mode="self" role="tab" aria-selected="${sfMode==='self'}">👤 My Stats</button><button class="sfTab ${sfMode==='league'?'active':''}" data-sf-mode="league" role="tab" aria-selected="${sfMode==='league'}">🌍 League Stats</button><button class="sfTab ${sfMode==='teams'?'active':''}" data-sf-mode="teams" role="tab" aria-selected="${sfMode==='teams'}">⚽ Team Stats</button><button class="sfTab ${sfMode==='nilnil'?'active':''}" data-sf-mode="nilnil" role="tab" aria-selected="${sfMode==='nilnil'}">🥅 0–0 Stats</button></div>`;
+  return `<div class="sfTabs" role="tablist" aria-label="Statistics view"><button class="sfTab ${sfMode==='self'?'active':''}" data-sf-mode="self" role="tab" aria-selected="${sfMode==='self'}">👤 My Stats</button><button class="sfTab ${sfMode==='league'?'active':''}" data-sf-mode="league" role="tab" aria-selected="${sfMode==='league'}">🌍 League Stats</button><button class="sfTab ${sfMode==='teams'?'active':''}" data-sf-mode="teams" role="tab" aria-selected="${sfMode==='teams'}">⚽ PL Clubs</button></div>`;
+}
+
+function sfLeagueSubNav(){
+  return `<nav class="sfLeagueSections" role="tablist" aria-label="Our league statistics sections">
+    <button type="button" class="sfLeagueSection ${sfLeagueSection==='overview'?'active':''}"
+      data-sf-league-section="overview" role="tab" aria-selected="${sfLeagueSection==='overview'}">🏆 League overview</button>
+    <button type="button" class="sfLeagueSection ${sfLeagueSection==='nilnil'?'active':''}"
+      data-sf-league-section="nilnil" role="tab" aria-selected="${sfLeagueSection==='nilnil'}">🥅 0–0 Stats</button>
+  </nav>`;
 }
 
 async function sfRender(host){
   if(!host?.isConnected)return;
   const keepHeight=Math.max(0,Math.round(host.getBoundingClientRect().height||0));
   if(keepHeight>120)host.style.minHeight=keepHeight+'px';
-  host.innerHTML=sfTabs()+`<div class="sfLoading">Building ${sfMode==='self'?'your stats':sfMode==='teams'?'team stats':sfMode==='nilnil'?'0–0 stats':'league stats'}…</div>`;
+  host.innerHTML=sfTabs()+`<div class="sfLoading">Building ${sfMode==='self'?'your stats':sfMode==='teams'?'Premier League club stats':sfMode==='league'&&sfLeagueSection==='nilnil'?'0–0 stats':'league stats'}…</div>`;
   try{
     if(sfMode==='teams'){
       if(typeof window.renderPLPTeamStats!=='function'){
@@ -1053,11 +1068,12 @@ async function sfRender(host){
       }
       return;
     }
-    if(sfMode==='nilnil'){
+    if(sfMode==='league'&&sfLeagueSection==='nilnil'){
       if(typeof window.renderPLPNilNilStats!=='function'){
-        host.innerHTML=sfTabs()+'<div class="sfError">0–0 Stats are loading. Please reopen this tab.</div>';
+        host.innerHTML=sfTabs()+sfLeagueSubNav()+
+          '<div class="sfError">0–0 Stats are loading. Please reopen League Stats.</div>';
       }else{
-        await window.renderPLPNilNilStats(host,sfTabs());
+        await window.renderPLPNilNilStats(host,sfTabs()+sfLeagueSubNav());
       }
       return;
     }
@@ -1076,7 +1092,7 @@ async function sfRender(host){
       const evidence=await sfLoadLeagueEvidence(false).catch(()=>[]);
       if(!host.isConnected||sfMode!=='league')return;
       const agg=sfLeagueAggregates(evidence);
-      host.innerHTML=sfTabs()+sfLAHtml(evidence)+sfLeagueHtml(agg);
+      host.innerHTML=sfTabs()+sfLeagueSubNav()+sfLAHtml(evidence)+sfLeagueHtml(agg);
       sfLABind(host,evidence);
     }
   }catch(e){
@@ -1120,10 +1136,21 @@ function sfSchedule(force=false,delay=220){
 }
 
 document.addEventListener('click',e=>{
+  const sectionBtn=e.target.closest?.('[data-sf-league-section]');
+  if(sectionBtn){
+    const section=sectionBtn.dataset.sfLeagueSection;
+    if(sfMode!=='league'||!['overview','nilnil'].includes(section)||section===sfLeagueSection)return;
+    sfLeagueSection=section;
+    const sectionHost=document.querySelector('.sfHost');
+    if(sectionHost){sectionHost.dataset.sfRendered='0';sfRender(sectionHost)}
+    const nav=sectionHost?.querySelector('.sfLeagueSections');
+    if(nav)nav.scrollIntoView({block:'start',behavior:'smooth'});
+    return;
+  }
   const btn=e.target.closest?.('[data-sf-mode]');
   if(!btn)return;
   const mode=btn.dataset.sfMode;
-  if(!['self','league','teams','nilnil'].includes(mode)||mode===sfMode)return;
+  if(!['self','league','teams'].includes(mode)||mode===sfMode)return;
   sfMode=mode;
   const host=document.querySelector('.sfHost');
   if(host){host.dataset.sfRendered='0';sfRender(host)}
