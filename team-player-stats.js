@@ -170,7 +170,7 @@ function tpRivalInsights(players){
   ['😬 Most unsuccessful picks',scoreless,scoreless?.blanks,'zero-point predictions'],
   ['🧠 Best outcome hit rate',highPct,highPct?.scoring_pct != null?tpNumber(highPct.scoring_pct)+'%':null,'scoring picks · minimum 2 predictions']
  ];
- return rows.filter(x=>x[1]&&tpNumber(x[2])>0).map(([title,p,value,context])=>
+ return rows.filter(x=>x[1]&&Number.parseFloat(x[2])>0).map(([title,p,value,context])=>
   '<div class="tpRow"><div><b>'+tpEsc(title)+'</b><small>'+
   tpEsc(tpName(p))+' · '+tpEsc(context)+'</small></div>'+
   '<span class="tpRowValue">'+tpEsc(value)+'</span></div>'
