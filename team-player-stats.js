@@ -7,7 +7,7 @@ const tpSb=createClient(
  'sb_publishable_OVczf1AxPQfYdwynkVlwaQ_9fdB9ij8'
 );
 let tpLeague=null,tpUser=null,tpData=null,tpFetched=0,tpInflight=null;
-let tpChosen='Arsenal',tpPlayerId=null,tpMode='points',tpFilter='',tpAllOpen=false;
+let tpChosen='Arsenal',tpPlayerId=null,tpMode='points',tpFilter='',tpAllOpen=false,tpTableSort='total';
 const tpEsc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tpArr=x=>Array.isArray(x)?x:[];
 const tpNumber=x=>Number(x||0);
@@ -61,6 +61,25 @@ function tpCss(){
  '.tpFixture:first-child{border-top:0}.tpFixture strong{display:block;font-size:11px;color:#2a1750}.tpFixture small{display:block;font-size:9px;color:#878093;margin-top:4px}',
  '.tpFixture b{font-size:13px;color:#39216e;white-space:nowrap;text-align:right}',
  '.tpRefresh{border:1px solid #dcd6e9;border-radius:9px;color:#4b269d;background:#f4f0fa;font-weight:900;padding:9px 12px;font-size:10px;cursor:pointer}',
+ '.tpLeagueWrap{overflow-x:auto;max-width:100%;border-radius:12px;border:1px solid #e7e2f0}',
+ '.tpLeagueTable{border-collapse:collapse;border-spacing:0;width:100%;min-width:335px;font-size:11px}',
+ '.tpLeagueTable thead{background:#f0edf8;color:#5e5278}',
+ '.tpLeagueTable th{padding:10px 5px;font-size:9px;text-align:right;white-space:nowrap;font-weight:900}',
+ '.tpLeagueTable th:first-child{padding-left:10px;text-align:left;width:22px}',
+ '.tpLeagueTable th:nth-child(2){text-align:left}',
+ '.tpLeagueTable td{padding:10px 5px;border-top:1px solid #f0edf4;text-align:right;white-space:nowrap;color:#4a405a;font-weight:700}',
+ '.tpLeagueTable td:first-child{padding-left:10px;text-align:left;font-weight:900}',
+ '.tpLeagueTable td:nth-child(2){text-align:left;white-space:normal;min-width:130px;line-height:1.3}',
+ '.tpLeagueTable td:last-child{padding-right:10px}',
+ '.tpLeagueTable .tpPoints{font-weight:950;color:#392077;font-size:12px}',
+ '.tpLeagueTable tbody tr.tpActiveClub{background:#f3edff}',
+ '.tpLeagueTable tbody tr.tpLeadingClub{background:#f5fcf8}',
+ '.tpTeamPick{color:#332250;text-align:left;border:0;padding:0;background:transparent;font:inherit;font-weight:850;cursor:pointer;line-height:1.3}',
+ '.tpTeamPick:focus-visible{outline:2px solid #4b269d;outline-offset:3px;border-radius:3px}',
+ '.tpTeamPick small{display:block;font-weight:600;color:#827991;font-size:9px;margin-top:3px}',
+ '.tpTableFilters{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}',
+ '.tpTableFilters button{border:1px solid #e4dded;background:#f6f3fa;color:#53426f;padding:8px 10px;font-weight:900;font-size:10px;border-radius:9px;cursor:pointer}',
+ '.tpTableFilters button.active{color:#fff;background:#4b269d;border-color:#4b269d}',
  '@media(min-width:650px){.tpTeams{grid-template-columns:repeat(3,minmax(0,1fr))}}',
  '@media(max-width:370px){.tpRankBox{padding:8px}.tpRankEntry{flex-wrap:wrap}.tpStat b{font-size:17px}}'
  ].join('');
@@ -94,6 +113,62 @@ async function tpLoad(force=false){
  })().finally(()=>{tpInflight=null});
  return tpInflight;
 }
+
+function tpLeagueSortValue(c,sort=tpTableSort){
+ if(sort==='average')return tpNumber(c.league_picks)?tpNumber(c.league_points)/tpNumber(c.league_picks):0;
+ if(sort==='exacts')return tpNumber(c.league_exacts);
+ if(sort==='accuracy')return tpNumber(c.league_picks)?tpNumber(c.league_scoring)/tpNumber(c.league_picks):0;
+ return tpNumber(c.league_points);
+}
+function tpClubLeagueTable(){
+ const teams=tpTeams();
+ const order=[...teams].sort((a,b)=>
+  tpLeagueSortValue(b)-tpLeagueSortValue(a)||
+  tpNumber(b.league_points)-tpNumber(a.league_points)||
+  tpNumber(b.league_exacts)-tpNumber(a.league_exacts)||
+  a.club.localeCompare(b.club)
+ );
+ const sortOpts=[
+  ['total','Total points'],
+  ['average','Points / pick'],
+  ['exacts','Exact scores'],
+  ['accuracy','Hit rate']
+ ];
+ const rows=order.map((club,index)=>{
+  const avg=tpNumber(club.league_picks)?
+   tpCompact(tpNumber(club.league_points)/tpNumber(club.league_picks)): '—';
+  const hit=tpPct(tpNumber(club.league_scoring),tpNumber(club.league_picks));
+  return '<tr class="'+(club.club===tpChosen?'tpActiveClub':index===0?'tpLeadingClub':'')+'">'+
+   '<td>'+(index+1)+'</td>'+
+   '<td><button type="button" class="tpTeamPick" data-tp-team="'+tpEsc(club.club)+'" '+
+    'title="See all player stats for '+tpEsc(club.club)+'">'+tpEsc(club.club)+
+    '<small>'+tpNumber(club.league_picks)+' picks · '+hit+' scored</small></button></td>'+
+   '<td>'+tpNumber(club.scored_matches)+'</td>'+
+   '<td class="tpPoints">'+tpNumber(club.league_points)+'</td>'+
+   '<td>'+tpNumber(club.league_exacts)+'</td>'+
+   '<td>'+avg+'</td></tr>';
+ }).join('');
+ return '<section class="tpCard" id="tp-club-league-table">'+
+  '<div class="tpHead"><div><h3>🏆 Our Premier League Points Table</h3>'+
+  '<p class="tpSub">All '+teams.length+' clubs ranked by the total prediction points earned by our league members in games involving each club.</p></div>'+
+  '<span class="tpChip">'+tpEsc(tpData?.season||'Season')+'</span></div>'+
+  '<div class="tpTableFilters" role="group" aria-label="Sort team points table">'+
+   sortOpts.map(([value,label])=>
+    '<button type="button" data-tp-table-sort="'+value+'" class="'+(tpTableSort===value?'active':'')+
+    '" aria-pressed="'+(tpTableSort===value?'true':'false')+'">'+label+'</button>'
+   ).join('')+'</div>'+
+  '<div class="tpLeagueWrap"><table class="tpLeagueTable" aria-label="Premier League clubs ranked by members prediction points">'+
+  '<thead><tr><th>#</th><th>Club</th><th title="Completed matches">P</th>'+
+  '<th title="Combined prediction points earned">Pts</th>'+
+  '<th title="Exact score predictions">Exact</th>'+
+  '<th title="Average points earned per prediction">Avg</th></tr></thead>'+
+  '<tbody>'+rows+'</tbody></table></div>'+
+  '<p class="tpHint"><b>Pts</b> = everyone’s combined points (3 for an exact score, 1 for the right result). '+
+  '<b>P</b> = completed matches involving the club; <b>Avg</b> = points per submitted prediction. '+
+  'Only official final results count. Each match contributes to both clubs’ totals. '+
+  'Tap a team for its player-by-player breakdown.</p></section>';
+}
+
 function tpClubChooser(){
  const clubs=tpTeams(),chosen=tpCurrent();
  return '<div class="tpCard" style="padding:13px"><div class="tpHead"><div><h3>⚽ All '+clubs.length+' teams</h3>'+
@@ -286,6 +361,8 @@ function tpDetailHtml(){
 function tpRefreshDetails(){
  const h=document.querySelector('.sfHost .tpHost');
  if(!h)return;
+ const table=h.querySelector('#tp-club-league-table');
+ if(table)table.outerHTML=tpClubLeagueTable();
  const detail=h.querySelector('#tp-team-detail');
  if(detail)detail.outerHTML=tpDetailHtml();
  const choice=h.querySelector('#tp-team-list');
@@ -307,7 +384,7 @@ async function tpMain(host,tabsMarkup){
    '<div class="tpStats">'+tpStat(tpTeams().length,'Teams')+
    tpStat(tpData?.completed_fixtures,'Completed games')+
    tpStat(tpData?.player_count,'League players')+'</div></div>'+
-   tpClubChooser()+tpDetailHtml()+'</div>';
+   tpClubLeagueTable()+tpClubChooser()+tpDetailHtml()+'</div>';
  }catch(err){
   if(host?.isConnected){
    host.innerHTML=tabsMarkup+'<div class="sfError">Could not load Team Stats: '+
@@ -324,9 +401,15 @@ document.addEventListener('input',e=>{
  if(choice)choice.innerHTML=tpTeamButtons(tpTeams(),tpCurrent());
 });
 document.addEventListener('click',e=>{
- const button=e.target.closest?.('[data-tp-team],[data-tp-mode],[data-tp-refresh]');
+ const button=e.target.closest?.('[data-tp-team],[data-tp-mode],[data-tp-refresh],[data-tp-table-sort]');
  if(!button||!document.querySelector('.sfHost .tpHost'))return;
  e.preventDefault();
+ if(button.dataset.tpTableSort){
+  if(!['total','average','exacts','accuracy'].includes(button.dataset.tpTableSort))return;
+  tpTableSort=button.dataset.tpTableSort;
+  tpRefreshDetails();
+  return;
+ }
  if(button.dataset.tpTeam){
   tpChosen=button.dataset.tpTeam;
   tpPlayerId=null;tpRefreshDetails();
