@@ -7,7 +7,7 @@ const OP_TZ = 'Europe/London';
 const opState = {
   leagueId:null, season:null, fixtures:[], scope:'day', day:null, week:null,
   from:null, to:null, report:null, filter:'outstanding', individual:null,
-  root:null, loading:false, loadedAt:null
+  root:null, loading:false, loadedAt:null, requestSerial:0
 };
 function opEsc(v) {
   return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -154,7 +154,8 @@ function opCurrentLabel() {
   return 'Dates '+opState.from+' to '+opState.to;
 }
 async function opRefresh(silent=false) {
-  if(opState.loading||!opState.leagueId)return false;
+  if(!opState.leagueId)return false;
+  const requestSerial=++opState.requestSerial;
   opState.loading=true;
   const button=opState.root?.querySelector('#op-refresh');
   if(button)button.disabled=true;
@@ -171,6 +172,7 @@ async function opRefresh(silent=false) {
       p_end_date:opState.scope==='dates'?opState.to:null
     });
     if(error)throw error;
+    if(requestSerial!==opState.requestSerial)return false;
     opState.report=data||{players:[],fixtures:[]};
     opState.loadedAt=new Date();
     const still=opArr(opState.report.players).some(p=>p.user_id===opState.individual&&p.missing_open>0);
@@ -179,13 +181,17 @@ async function opRefresh(silent=false) {
     opRenderMessages();
     return true;
   }catch(e){
+    if(requestSerial!==opState.requestSerial)return false;
     const target=opState.root?.querySelector('#op-results');
     if(target&&!silent)target.innerHTML='<div class="opCard opError">'+opEsc(e.message||String(e))+'</div>';
     else opToast('Could not refresh: '+(e.message||e));
     return false;
   }finally{
-    opState.loading=false;
-    if(button)button.disabled=false;
+    if(requestSerial===opState.requestSerial){
+      opState.loading=false;
+      const currentButton=opState.root?.querySelector('#op-refresh');
+      if(currentButton)currentButton.disabled=false;
+    }
   }
 }
 function opHasMissing(p){return (Number(p.missing_open)||0)+(Number(p.missing_soon)||0)+(Number(p.missing_locked)||0)>0;}
