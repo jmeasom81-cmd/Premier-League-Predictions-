@@ -205,12 +205,11 @@
     Object.values(injected).forEach(el=>el?.classList.add('ucSourceHidden'));
 
     const verification=cardByHeading('Results verification');
-    const coverage=cardByHeading('Reminder coverage');
     const manual=cardByHeading('Admin · Results');
     const backup=cardByHeading('Season Backup');
     const notice=cardByHeading('Admin · Notice');
 
-    [verification,coverage,manual,backup,notice].forEach(card=>{
+    [verification,manual,backup,notice].forEach(card=>{
       if(card && !card.classList.contains('ucAdvancedOpen'))card.classList.add('ucAdvancedHidden');
     });
     compactVerification(verification);
@@ -230,7 +229,7 @@
           <div class="ucToolGrid">
             ${tool('generator','✨ Message generator','Matchday · matchweek · form','comm')}
             ${tool('daily','📣 Daily recap','Day so far · WhatsApp','comm')}
-            ${tool('reminder','📲 Outstanding picks','Create reminder message','comm')}
+            ${tool('outstanding','📨 Outstanding predictions','All players · WhatsApp','comm')}
           </div>
         </div>
 
@@ -247,7 +246,6 @@
           <div class="ucGroupTitle">Controls & maintenance</div>
           <div class="ucToolGrid">
             ${tool('verify','🛡️ Results check','Only items needing attention','control')}
-            ${tool('coverage','🔔 Reminder coverage','Who has notifications enabled','control')}
             ${tool('manual','🧯 Manual result rescue','Emergency override only','control')}
             ${tool('backup','📦 Season backup','Download recovery copy','control')}
             ${tool('notice','📌 Post notice','League Notice Board update','control')}
@@ -262,7 +260,7 @@
 
     const direct={
       generator:()=>window.openPLPMessageGenerator?.(),
-      reminder:()=>clickOriginal('.waAdminCard [data-wa-open]'),
+      outstanding:()=>window.outstandingOpen?.(),
       daily:()=>clickOriginal('.drAdminCard [data-dr-open]'),
       player:()=>window.openPLPPlayerDayReport?.(),
       engagement:()=>clickOriginal('.engAdminCard [data-eng-open]'),
@@ -274,7 +272,7 @@
       if(b&&!b.dataset.wired){b.dataset.wired='1';b.onclick=fn}
     });
 
-    const advanced={verify:verification,coverage,manual,backup,notice};
+    const advanced={verify:verification,manual,backup,notice};
     Object.entries(advanced).forEach(([key,card])=>{
       const b=hub.querySelector(`[data-uc-tool="${key}"]`);
       if(!b||!card||b.dataset.wired)return;
