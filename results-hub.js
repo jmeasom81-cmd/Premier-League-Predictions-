@@ -2,13 +2,15 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 const RH_URL='https://jzrbaeyvwagrwukntjbk.supabase.co';
 const RH_KEY='sb_publishable_OVczf1AxPQfYdwynkVlwaQ_9fdB9ij8';
-const rh=createClient(RH_URL,RH_KEY);
+// Reuse the main app's authenticated client so Results cannot drift onto an anonymous session.
+const rh=window.plpSupabase || createClient(RH_URL,RH_KEY);
 
 let leagueId=null;
 let resultsCache=[];
 let fetchedAt=0;
 let injecting=false;
 let currentMode='mine';
+let sessionUserId=null;
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -110,14 +112,24 @@ function addStyles(){
 }
 
 async function getSession(){
-  const {data:{session}}=await rh.auth.getSession();
-  return session||null;
+  const {data,error}=await rh.auth.getSession();
+  if(error) throw error;
+  const session=data?.session||null;
+  const userId=session?.user?.id||null;
+  // A league id belongs to a specific signed-in user; never reuse it after sign-out.
+  if(userId!==sessionUserId){
+    sessionUserId=userId;
+    leagueId=null;
+    resultsCache=[];
+    fetchedAt=0;
+  }
+  return session;
 }
 
 async function getLeagueId(){
-  if(leagueId) return leagueId;
   const session=await getSession();
   if(!session) return null;
+  if(leagueId) return leagueId;
   const {data,error}=await rh.from('league_members').select('league_id,status').eq('user_id',session.user.id);
   if(error) throw error;
   leagueId=(data||[]).find(x=>x.status==='active')?.league_id||null;
@@ -125,10 +137,26 @@ async function getLeagueId(){
 }
 
 async function getResults(force=false){
+  // Always check the session, even when the league id and results are cached.
+  const session=await getSession();
+  if(!session) throw new Error('Your sign-in has expired. Please sign in again to see results.');
   const lid=await getLeagueId();
   if(!lid) return [];
   if(!force && resultsCache.length && Date.now()-fetchedAt<20000) return resultsCache;
-  const {data,error}=await rh.rpc('get_league_history',{p_league_id:lid,p_limit:200});
+  const args={p_league_id:lid,p_limit:200};
+  let {data,error}=await rh.rpc('get_league_history',args);
+  const authDenied=e=>e && (e.status===401 || /permission denied for function get_league_history|invalid jwt|jwt expired/i.test(e.message||''));
+  if(authDenied(error)){
+    // A second Supabase module may have refreshed the token in another tab.
+    // Refresh once and retry; never grant unauthenticated access to sealed picks.
+    const refreshed=await rh.auth.refreshSession();
+    if(!refreshed.error && refreshed.data?.session){
+      ({data,error}=await rh.rpc('get_league_history',args));
+    }
+    if(authDenied(error) || refreshed.error || !refreshed.data?.session){
+      throw new Error('Your sign-in needs refreshing. Please log out and sign in again to view results.');
+    }
+  }
   if(error) throw error;
   resultsCache=(data||[])
     .filter(x=>x.result_home_score!==null && x.result_home_score!==undefined)
@@ -368,7 +396,8 @@ async function openResults(){
     bindTabs(overlay,rows);
     await renderResultsBody(overlay,rows);
   }catch(e){
-    overlay.querySelector('.rhBody').innerHTML=`<div class="rhEmpty">Could not load results.<br>${esc(e.message||String(e))}</div>`;
+    const body=overlay.querySelector('.rhBody');
+    if(body) body.innerHTML=`<div class="rhEmpty"><b>Could not load results.</b><p>${esc(e.message||String(e))}</p><button class="rhPrimary" onclick="window.openPLPResults()">↻ Try again</button></div>`;
   }
 }
 
