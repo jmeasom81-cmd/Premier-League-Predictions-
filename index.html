@@ -24,6 +24,8 @@ import{createClient}from'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+e
 const SUPABASE_URL='https://jzrbaeyvwagrwukntjbk.supabase.co';
 const SUPABASE_KEY='sb_publishable_OVczf1AxPQfYdwynkVlwaQ_9fdB9ij8';
 const sb=createClient(SUPABASE_URL,SUPABASE_KEY);
+// Shared authenticated client for Results; avoids competing login sessions.
+window.plpSupabase=sb;
 const main=document.getElementById('main'),hdr=document.getElementById('hdr'),nav=document.getElementById('nav');
 const UK='Europe/London',PENDING='plp_join';
 let session=null,membership=null,league=null,fixtures=[],members=[],profiles={},standings=[],submission=[],invites=[],notices=[],chat=[],history=[],historyLoaded=false,statsData=null,statsLoaded=false,verificationQueue=[],selectedPredictionMatchweek=null,view='home',authMode='signin',recoveryMode=false,deepOpen=null;
