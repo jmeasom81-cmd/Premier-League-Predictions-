@@ -46,6 +46,12 @@ function styles(){
  '.phHero.phUnderHero{padding:13px 14px;margin:10px 0;border-radius:15px;background:linear-gradient(135deg,#39216b,#264980);box-shadow:0 7px 18px #18122c18}',
  '.phHero.phUnderHero h2{font-size:17px;margin:5px 0 9px}',
  '.phHero.phUnderHero .phMetric strong{font-size:21px}',
+ '.phHero.phCompactHonours{padding:12px 15px;box-shadow:0 6px 17px #24124212;margin:7px 0 10px;background:linear-gradient(135deg,#382166,#214c78)}',
+ '.phHero.phCompactHonours h2{font-size:18px;margin:4px 0 8px}',
+ '.phHonoursLine{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;align-items:center;font-weight:650;margin:0 0 4px}',
+ '.phHonoursLine b{font-size:17px}',
+ '.phHero.phCompactHonours .phInfo{margin:6px 0 10px;font-size:11px}',
+ '.phHero.phCompactHonours .phActions{gap:6px}',
  '.phEyebrow{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;opacity:.8}',
  '.phMetrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}',
  '.phMetric{padding:10px 4px;border-radius:12px;text-align:center;background:#ffffff19}',
@@ -140,7 +146,7 @@ function placeHonours(main,el){
   if(header){
    header.classList.add('phUnderHero');
    const heading=header.querySelector('h2');
-   if(heading)heading.textContent='🏆 Your Trophy Cabinet is open!';
+   // The compact honours panel already has its own heading; do not replace it.
   }
   const hero=host.querySelector('.hfHero');
   if(hero)hero.insertAdjacentElement('afterend',el);
@@ -162,25 +168,29 @@ function renderHome(d){
   if(host&&existing.parentElement!==host)placeHonours(main,existing);
   return;
  }
- const row=d.standings.find(x=>x.entrant_type==='human'&&String(x.entrant_id)===d.uid);
  const rank=d.standings.findIndex(x=>x.entrant_type==='human'&&String(x.entrant_id)===d.uid);
  const week=latestWeek(d),stats=weekly(d,week),awards=myAwards(d);
  const count=awards.filter(a=>a.category!=='league_leader').length,crowns=awards.length-count;
- const open=d.fixtures.filter(f=>f.result_home_score==null&&Date.parse(f.prediction_lock_at)>Date.now()).sort((a,b)=>Date.parse(a.prediction_lock_at)-Date.parse(b.prediction_lock_at));
- const needed=open.filter(f=>f.your_home_score==null||f.your_away_score==null);
- const lock=(needed[0]||open[0]);
- const date=lock?new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(lock.prediction_lock_at)):'to be announced';
- const rivals=d.standings.slice(Math.max(0,rank-1),Math.min(d.standings.length,rank+2));
+ // Focus on the very next upcoming matchweek, never combine MW11 and MW12 into
+ // a frightening "20 predictions missing" message.
+ const open=d.fixtures.filter(f=>f.result_home_score==null&&Date.parse(f.prediction_lock_at)>Date.now()&&f.matchweek!=null).sort((a,b)=>Date.parse(a.prediction_lock_at)-Date.parse(b.prediction_lock_at));
+ const nextRound=open.length?Math.min(...open.map(f=>num(f.matchweek))):null;
+ const roundFixtures=open.filter(f=>num(f.matchweek)===nextRound);
+ const missing=roundFixtures.filter(f=>f.your_home_score==null||f.your_away_score==null);
+ const nextLock=roundFixtures[0];
+ const date=nextLock?new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(nextLock.prediction_lock_at)):'Not scheduled';
+ const start=rank===0?0:Math.max(0,rank-1);
+ const rivals=d.standings.slice(start,Math.min(d.standings.length,start+3));
  const rows=rivals.map(x=>'<div class="phRivalRow '+(String(x.entrant_id)===d.uid?'me':'')+'"><span>'+(d.standings.indexOf(x)+1)+'. '+esc(x.manager_name||x.team_name)+'</span><b>'+num(x.total_points)+' pts</b></div>').join('');
  const shelf=awards.slice().sort((a,b)=>b.matchweek-a.matchweek).slice(0,3).map(a=>'<div class="phMini '+awardType(a.category)[3]+'"><span class="phSymbol">'+trophyArtwork(a.category)+'</span><b>'+esc(awardName(a.category))+'</b>MW'+a.matchweek+'</div>').join('');
  const el=document.createElement('section');el.id='ph-personal-home';
- el.innerHTML='<div class="phHero"><div class="phEyebrow">Your personal league HQ</div><h2>Welcome back, '+esc(who(d,d.uid))+'! ⚽</h2>'+
- '<div class="phMetrics"><div class="phMetric"><strong>'+(rank>=0?rank+1:'–')+'</strong><span>League position</span></div><div class="phMetric"><strong>'+num(row?.total_points)+'</strong><span>Season points</span></div><div class="phMetric"><strong>'+stats.points+'</strong><span>MW'+week+' points</span></div></div>'+
- '<p class="phInfo">🏆 '+count+' trophies · 👑 '+crowns+' crowns · 🎯 '+stats.exacts+' exact scores in MW'+week+'</p>'+
- '<p class="phInfo">⏰ Next lock: <b>'+esc(date)+'</b>'+(needed.length?' · '+needed.length+' picks still to make':' · all currently open picks saved')+'</p>'+
- '<div class="phActions"><button class="phBtn" data-ph-open="cabinet">🏆 My cabinet</button><button class="phBtn alt" data-ph-open="story">My weekly story</button></div></div>'+
- '<div class="phHomeCard"><h3>⚔️ Nearest rivals</h3>'+rows+'</div>'+
- '<div class="phHomeCard"><h3>🏆 My trophy shelf</h3><div class="phShelf">'+(shelf||'No trophies yet — every week is a new chance!')+'</div><button class="phBtn" style="margin-top:11px;background:#432a7b;color:#fff" data-ph-open="hall">Hall of Fame</button></div>';
+ el.innerHTML='<div class="phHero phUnderHero phCompactHonours"><div class="phEyebrow">🏆 SEASON 2026/27 · YOUR HONOURS</div>'+
+ '<h2>Your trophy collection</h2>'+
+ '<div class="phHonoursLine"><span><b>'+count+'</b> performance trophies</span><span>👑 <b>'+crowns+'</b> leader crowns</span><span>⚽ <b>'+stats.points+'</b> MW'+week+' pts</span></div>'+
+ (nextRound?'<p class="phInfo">Next: <b>MW'+nextRound+'</b> · <b>'+missing.length+'/'+roundFixtures.length+'</b> picks to make · first lock '+esc(date)+'</p>':'<p class="phInfo">All upcoming picks accounted for.</p>')+
+ '<div class="phActions"><button class="phBtn" data-ph-open="cabinet">🏆 View my cabinet</button><button class="phBtn alt" data-ph-open="story">My weekly story</button></div></div>'+
+ '<div class="phHomeCard"><h3>⚔️ Your nearest rivals</h3>'+rows+'</div>'+
+ '<div class="phHomeCard"><h3>🏆 Your latest trophies</h3><div class="phShelf">'+(shelf||'No trophies yet — every week is a new chance!')+'</div><button class="phBtn" style="margin-top:11px;background:#432a7b;color:#fff" data-ph-open="hall">View Hall of Fame</button></div>';
  el.onclick=e=>{const b=e.target.closest('[data-ph-open]');if(b)open(b.dataset.phOpen)};
  placeHonours(main,el);
 }
