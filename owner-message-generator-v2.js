@@ -8,7 +8,11 @@ const mgSb=createClient(
   'sb_publishable_OVczf1AxPQfYdwynkVlwaQ_9fdB9ij8'
 );
 
-const MG_APP='https://jmeasom81-cmd.github.io/Premier-League-Predictions-/';
+const MG_APP='https://premier-league-predictions-ten.vercel.app/';
+function mgDestination(s,fallback){
+  const chosen=s.linkTarget&&s.linkTarget!=='auto'?s.linkTarget:fallback;
+  return MG_APP+'?open='+encodeURIComponent(chosen);
+}
 
 let mgCtx=null;
 let mgData=null;
@@ -401,7 +405,8 @@ function mgSettings(){
     topEarners:!!o.querySelector('[data-mg-extra="top-earners"]')?.checked,
     bottomEarners:!!o.querySelector('[data-mg-extra="bottom-earners"]')?.checked,
     random:!!o.querySelector('[data-mg-extra="random"]')?.checked,
-    link:!!o.querySelector('[data-mg-extra="link"]')?.checked
+    link:!!o.querySelector('[data-mg-extra="link"]')?.checked,
+    linkTarget:o.querySelector('[data-mg-link-target]')?.value||'auto'
   };
 }
 
@@ -910,7 +915,7 @@ function mgPrePeriodMessage(s,d){
   if(s.random&&long&&banter){
     output.push('🍀 The only guarantee? Someone will blame the referee for missing an exact score.');
   }
-  if(s.link)output.push('📲 Make your predictions:\n'+MG_APP);
+  if(s.link)output.push('📲 Make your predictions:\n'+mgDestination(s,'predict'));
   let message=output.filter(Boolean).join('\n\n');
   if(s.emoji==='none')message=message.replace(/[⚽🌟🔥📈🚀📉🎯😬🍀🏆🧠🤦📊👀😂😄🔒🔮🥶📋⏰🎤💬🎙️]/gu,'').replace(/^\s+/gm,'');
   return message.trim();
@@ -991,7 +996,7 @@ function mgBuild(s,d){
     clean.push(mgPick(closers,7));
   }
 
-  if(s.link)clean.push(`📲 Open the app:\n${MG_APP}`);
+  if(s.link)clean.push(`📲 Open the app:\n${mgDestination(s,s.scope==='week_so_far'||s.scope==='matchday'?'match':s.scope==='prematch'?'predict':'weekly')}`);
 
   let message=clean.join('\n\n');
   if(s.emoji==='none')message=message.replace(/[⚽🌟🔥📈🚀📉🎯😬🍀🏆🧠🤦📊👀😂😄🔒🔮🥶]/g,'').replace(/^\s+/gm,'');
@@ -1372,6 +1377,16 @@ async function mgOpen(){
           <label class="mgToggle"><input type="checkbox" data-mg-extra="random" checked> Add random stat</label>
           <label class="mgToggle"><input type="checkbox" data-mg-extra="link" checked> Add app link</label>
         </div>
+        <div class="mgLabel">WhatsApp link destination</div>
+        <select class="mgSelect" data-mg-link-target>
+          <option value="auto">Smart destination based on the message</option>
+          <option value="home">Personal homepage</option>
+          <option value="match">Live Match Centre</option>
+          <option value="trophies">My Trophy Cabinet</option>
+          <option value="weekly">My Weekly Story</option>
+          <option value="hall">Trophy Hall of Fame</option>
+          <option value="predict">Make predictions</option>
+        </select>
 
       </div>
 
