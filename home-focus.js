@@ -91,7 +91,7 @@ function hfCss(){
       background-repeat:no-repeat;
       background-position:center;
       background-size:contain;
-      opacity:.82;
+      opacity:.44;
       filter:drop-shadow(0 16px 26px rgba(0,0,0,.23));
       pointer-events:none;
     }
@@ -279,7 +279,7 @@ function hfPredictionHtml(d){
   }else if(missing>0){
     cls=hours<=6?'urgent':hours<=24?'attention':'';
     icon=hours<=6?'⏰':'✍️';
-    title=`${missing} ${hfPlural(missing,'prediction')} still to make`;
+    title=`${missing} ${hfPlural(missing,'prediction')} across upcoming rounds`;
     const fixture=p.next_home_team&&p.next_away_team?`${p.next_home_team} v ${p.next_away_team}`:'Next prediction';
     sub=`${fixture}${next?` · locks ${hfFmt(next)}`:''}`;
   }
