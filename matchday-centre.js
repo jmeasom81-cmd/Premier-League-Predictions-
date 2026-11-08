@@ -497,7 +497,8 @@ function mc3UpdateLiveLabels(d){
   }
 
   const f=d?.feed||{};
-  const liveOk=f.ok===true;
+  const delayed=!!f.stale;
+  const liveOk=f.ok===true&&!delayed;
   const fresh=body.querySelector('.mc3Fresh');
   if(fresh){
     fresh.classList.toggle('ok',liveOk);
@@ -512,7 +513,7 @@ function mc3UpdateLiveLabels(d){
       if(x!=='—')stamp=x;
     }
     if(b)b.textContent=(liveOk?'⚡ ':'↻ ')+src;
-    if(span)span.textContent=(liveOk?'Live scores connected':'Locked picks available · live score provider will keep retrying')+' · updated '+stamp;
+    if(span)span.textContent=(delayed?'⚠️ Score provider delayed · last received':liveOk?'Live scores connected':'Locked picks available · live score provider will keep retrying')+' · '+stamp;
   }
 }
 
@@ -674,7 +675,8 @@ function mc3ProjectedTable(data){
 
 function mc3ProviderBar(d){
   const f=d?.feed||{};
-  const liveOk=f.ok===true;
+  const delayed=!!f.stale;
+  const liveOk=f.ok===true&&!delayed;
   const src=f.source_label||(liveOk?'Live score provider':'Prediction history');
   const ts=f.source_updated_at||f.fetched_at||d?.fetched_at;
   let stamp='just now';
@@ -685,7 +687,7 @@ function mc3ProviderBar(d){
 
   return `<div class="mc3Fresh ${liveOk?'ok':'fallback'}">
     <div><b>${liveOk?'⚡':'↻'} ${mc3Esc(src)}</b>
-      <span>${liveOk?'Live scores connected':'Locked picks available · live score provider will keep retrying'} · updated ${mc3Esc(stamp)}</span>
+      <span>${delayed?'⚠️ Score provider delayed · last received':liveOk?'Live scores connected':'Locked picks available · live score provider will keep retrying'} · ${mc3Esc(stamp)}</span>
     </div>
     <div style="display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px">
       ${d?.manual?.is_owner&&(d.manual.eligible||[]).length
@@ -957,5 +959,14 @@ document.addEventListener('click',e=>{
   }
 },true);
 
-setInterval(()=>mc3Sync(true),15000);
+// Refresh every 10 seconds while Match Centre is visible, less often in the background.
+// Each viewer receives the shared short-lived server snapshot.
+let mc3LastPassivePoll=0;
+setInterval(()=>{
+  const now=Date.now();
+  if(document.querySelector('.mc3Overlay')||now-mc3LastPassivePoll>=30000){
+    mc3LastPassivePoll=now;
+    mc3Sync(true);
+  }
+},10000);
 setTimeout(()=>mc3Sync(true),500);
