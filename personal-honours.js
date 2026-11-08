@@ -43,6 +43,9 @@ function styles(){
  e.textContent=[
  '.phHero{background:linear-gradient(125deg,#251447,#4a298d);color:#fff;padding:17px;border-radius:19px;margin:12px 0;box-shadow:0 12px 24px #24124225}',
  '.phHero h2{font-size:23px;color:#fff;margin:5px 0 12px;line-height:1.2}',
+ '.phHero.phUnderHero{padding:13px 14px;margin:10px 0;border-radius:15px;background:linear-gradient(135deg,#39216b,#264980);box-shadow:0 7px 18px #18122c18}',
+ '.phHero.phUnderHero h2{font-size:17px;margin:5px 0 9px}',
+ '.phHero.phUnderHero .phMetric strong{font-size:21px}',
  '.phEyebrow{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;opacity:.8}',
  '.phMetrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}',
  '.phMetric{padding:10px 4px;border-radius:12px;text-align:center;background:#ffffff19}',
@@ -124,11 +127,41 @@ function weekly(d,week){
 }
 function homeVisible(){
  const main=document.getElementById('main');
- return !!main&&[...main.querySelectorAll('.section h2')].some(h=>h.textContent?.includes('Notice Board'))
- &&[...main.querySelectorAll('.section h2')].some(h=>h.textContent?.includes('Predictions in'));
+ // The main app knows which view is open. Other Home modules may hide or replace
+ // legacy headings, so use navigation state rather than fragile heading matching.
+ return !!main && !!document.querySelector('#nav button[data-v="home"].active');
+}
+function placeHonours(main,el){
+ const host=main.querySelector(':scope > .hfHost');
+ if(host){
+  // Home Focus hides other top-level Home cards. Insert the trophy feature *inside*
+  // the visible Home Focus container and keep it below the existing club hero.
+  const header=el.querySelector('.phHero');
+  if(header){
+   header.classList.add('phUnderHero');
+   const heading=header.querySelector('h2');
+   if(heading)heading.textContent='🏆 Your Trophy Cabinet is open!';
+  }
+  const hero=host.querySelector('.hfHero');
+  if(hero)hero.insertAdjacentElement('afterend',el);
+  else host.prepend(el);
+  el.classList.remove('hfLegacyHidden');
+  return;
+ }
+ // Fallback for loading before Home Focus is ready.
+ main.prepend(el);
 }
 function renderHome(d){
- const main=document.getElementById('main');if(!homeVisible()||document.getElementById('ph-personal-home'))return;
+ const main=document.getElementById('main');
+ if(!homeVisible())return;
+ const existing=document.getElementById('ph-personal-home');
+ if(existing){
+  // Home Focus may load after the first Home render. Re-home the honours without
+  // recreating the page or sending another network request.
+  const host=main.querySelector(':scope > .hfHost');
+  if(host&&existing.parentElement!==host)placeHonours(main,existing);
+  return;
+ }
  const row=d.standings.find(x=>x.entrant_type==='human'&&String(x.entrant_id)===d.uid);
  const rank=d.standings.findIndex(x=>x.entrant_type==='human'&&String(x.entrant_id)===d.uid);
  const week=latestWeek(d),stats=weekly(d,week),awards=myAwards(d);
@@ -149,10 +182,7 @@ function renderHome(d){
  '<div class="phHomeCard"><h3>⚔️ Nearest rivals</h3>'+rows+'</div>'+
  '<div class="phHomeCard"><h3>🏆 My trophy shelf</h3><div class="phShelf">'+(shelf||'No trophies yet — every week is a new chance!')+'</div><button class="phBtn" style="margin-top:11px;background:#432a7b;color:#fff" data-ph-open="hall">Hall of Fame</button></div>';
  el.onclick=e=>{const b=e.target.closest('[data-ph-open]');if(b)open(b.dataset.phOpen)};
- const banner=main.querySelector(':scope > .banner');if(banner)banner.insertAdjacentElement('afterend',el);else main.prepend(el);
- // Keep the latest notice board prominent directly beneath the personal hero.
- const notice=[...main.querySelectorAll(':scope > .card')].find(card=>card.querySelector('.section h2')?.textContent?.includes('Notice Board'));
- if(notice){const more=[...el.querySelectorAll('.phHomeCard')];more.reverse().forEach(card=>{card.addEventListener('click',e=>{const b=e.target.closest('[data-ph-open]');if(b)open(b.dataset.phOpen)});notice.insertAdjacentElement('afterend',card)})}
+ placeHonours(main,el);
 }
 function card(category,awards){
  const def=awardType(category);const count=awards.length;
