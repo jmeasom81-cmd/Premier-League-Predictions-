@@ -82,7 +82,7 @@ function styles(){
  '.phSvg{filter:drop-shadow(0 5px 7px #0008);max-width:100%;height:78px}.phMini .phSvg{height:48px;width:48px}.phTrophy.gold .phSvg,.phMini.gold .phSvg{color:#f5ce6a}.phTrophy.ruby .phSvg,.phMini.ruby .phSvg{color:#fa8798}.phTrophy.emerald .phSvg,.phMini.emerald .phSvg{color:#58e2b3}.phTrophy.blue .phSvg,.phMini.blue .phSvg{color:#84c7ff}.phTrophy.violet .phSvg,.phMini.violet .phSvg{color:#cea1ff}.phTrophy.amber .phSvg,.phMini.amber .phSvg{color:#ffc076}.phTrophy.ice .phSvg,.phMini.ice .phSvg{color:#8eeaf4}',
  '.phTrophy.gold{border-color:#bd9b54}.phTrophy.emerald{border-color:#32aa86}.phTrophy.blue{border-color:#6796e7}.phTrophy.ruby{border-color:#d56b81}',
  '.phTrophy.ice{border-color:#6bd6e3}.phTrophy.violet{border-color:#ad7bde}.phTrophy.amber{border-color:#cb9454}',
- '.phTrophy.locked{opacity:.45;filter:grayscale(1)}.phQty{display:inline-block;border-radius:10px;padding:4px 10px;background:#624476;font-size:11px;margin:6px 0}',
+ '.phTrophy.locked{opacity:.7;filter:grayscale(.65)}.phTrophy.locked.phTrophyAction{border-style:dashed}.phQty{display:inline-block;border-radius:10px;padding:4px 10px;background:#624476;font-size:11px;margin:6px 0}',
  '.phHallRow{display:flex;justify-content:space-between;gap:6px;border-bottom:1px solid #57456b;padding:11px 1px;font-size:12px}.phHallRow b{color:#fff}.phHallRow span{color:#d9c9e4}',
  '.phGameRow{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #57456b;padding:9px 0;font-size:12px}.phGameRow b{color:#fff;white-space:nowrap}.phGameRow small{display:block;color:#bea9d4}',
  '.phHelp{font-size:11px;color:#bfaed1;line-height:1.5;margin-top:12px}',
@@ -251,8 +251,8 @@ function card(category,awards){
  const detail=count?'Won in Matchweek'+(count===1?' ':'s ')+weeks.join(', '):def[4];
  const inside='<span class="phSymbol">'+trophyArtwork(category)+'</span><b>'+esc(def[1])+'</b>'+
  (count?'<span class="phQty">× '+count+'</span>':'')+'<p>'+esc(detail)+'</p>'+
- (count?'<small>Tap for award details ›</small>':'<small>Not yet earned</small>');
- if(!count)return '<div class="phTrophy '+def[3]+' locked" aria-label="'+esc(def[1])+': not earned">'+inside+'</div>';
+ (count?'<small>Tap for award details ›</small>':'<small>How to win & who has won ›</small>');
+ if(!count)return '<button type="button" class="phTrophy phTrophyAction '+def[3]+' locked" data-ph-category="'+esc(category)+'" data-ph-locked="1" aria-label="Learn how to win '+esc(def[1])+'">'+inside+'</button>';
  return '<button type="button" class="phTrophy phTrophyAction '+def[3]+'" data-ph-category="'+esc(category)+'" aria-label="Open '+esc(def[1])+' trophies">'+inside+'</button>';
 }
 function countersFor(s){
@@ -387,7 +387,9 @@ function redraw(d){
   }
   if(btn.dataset.phFilter){activeFilter=btn.dataset.phFilter;redraw(d);return}
   if(btn.dataset.phCategory){
-    selectedMemberId=activeTab==='player'?selectedMemberId:d.uid;
+    // A locked trophy reveals the award rules and all historical winners.
+    // An earned trophy lists that member's own wins and matchweeks.
+    selectedMemberId=btn.dataset.phLocked==='1'?null:(activeTab==='player'?selectedMemberId:d.uid);
     selectedCategory=btn.dataset.phCategory;selectedAwardId=null;
     redraw(d);return;
   }
