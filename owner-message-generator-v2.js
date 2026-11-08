@@ -8,7 +8,8 @@ const mgSb=createClient(
   'sb_publishable_OVczf1AxPQfYdwynkVlwaQ_9fdB9ij8'
 );
 
-const MG_APP='https://premier-league-predictions-ten.vercel.app/';
+// Deep links use the same origin players are already signed into (GitHub Pages or Vercel).
+const MG_APP=location.origin+location.pathname;
 function mgDestination(s,fallback){
   const chosen=s.linkTarget&&s.linkTarget!=='auto'?s.linkTarget:fallback;
   return MG_APP+'?open='+encodeURIComponent(chosen);
@@ -1384,6 +1385,7 @@ async function mgOpen(){
           <option value="match">Live Match Centre</option>
           <option value="trophies">My Trophy Cabinet</option>
           <option value="weekly">My Weekly Story</option>
+          <option value="league">League Trophy Cabinet (all players)</option>
           <option value="hall">Trophy Hall of Fame</option>
           <option value="predict">Make predictions</option>
         </select>
