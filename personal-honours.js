@@ -19,6 +19,21 @@ const coming=[
  ['Club Loyalist','Return on separate days during the week']
 ];
 const index=Object.fromEntries(defs.map(d=>[d[0],d]));
+
+function trophyArtwork(category){
+ const shapes={
+  matchweek_champion:'<path d="M30 15H70V39C70 58 60 67 50 67S30 58 30 39Z"/><path d="M30 24H17V33C17 44 26 49 35 49M70 24H83V33C83 44 74 49 65 49" stroke="currentColor" stroke-width="7" fill="none"/><path d="M50 66V81M30 85H70" stroke="currentColor" stroke-width="8" fill="none"/><path d="m50 26 4 8 9 1-7 7 2 9-8-4-8 4 2-9-7-7 9-1Z" fill="#fff" opacity=".9"/>',
+  exact_master:'<circle cx="50" cy="43" r="32"/><circle cx="50" cy="43" r="22" fill="#fff" opacity=".25"/><circle cx="50" cy="43" r="12" fill="#fff" opacity=".85"/><circle cx="50" cy="43" r="5"/><path d="M50 74V84M29 87H71" stroke="currentColor" stroke-width="8" fill="none"/>',
+  league_leader:'<path d="M12 31 30 44 40 19 52 43 70 18 75 44 88 29 81 70H20Z"/><rect x="21" y="74" width="59" height="12" rx="3"/><circle cx="38" cy="57" r="4" fill="#fff"/><circle cx="61" cy="57" r="4" fill="#fff"/>',
+  biggest_climber:'<path d="M17 65 45 36 61 51 84 24" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/><path d="M62 25H85V47" fill="none" stroke="currentColor" stroke-width="11"/><path d="M21 85H78" fill="none" stroke="currentColor" stroke-width="8"/>',
+  consistency_shield:'<path d="M50 11 83 23V49C83 70 67 82 50 91 33 82 17 70 17 49V23Z"/><path d="M31 51 44 64 71 35" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>',
+  precision_trophy:'<path d="M50 10 80 29V66L50 89 20 66V29Z"/><path d="M20 29 50 48 80 29M50 48V89M20 66 50 48 80 66" stroke="#fff" fill="none" stroke-width="4" opacity=".7"/><circle cx="50" cy="48" r="7" fill="#fff"/>',
+  bold_call:'<path d="M56 9 23 54H47L40 92 80 40H55Z"/><path d="M15 16 22 24M78 78 87 87" fill="none" stroke="currentColor" stroke-width="7"/>',
+  final_day_hero:'<path d="M49 9C30 33 27 43 30 56c-13-2-18-11-18-11-12 30 7 47 38 47s51-26 35-47c-2 13-9 19-14 21C78 41 67 24 49 9Z"/><path d="M51 44C39 60 35 69 39 77c4 8 8 9 13 9 14 0 17-13 7-27-1 8-5 10-8 12 1-11 2-19 0-27Z" fill="#fff" opacity=".66"/>'
+ };
+ return '<svg class="phSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="78" height="78" fill="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(shapes[category]||shapes.matchweek_champion)+'</svg>';
+}
+
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const num=n=>Number(n||0);
 let cached=null,cacheAt=0,fetching=null,activeTab='cabinet',activeFilter='football',handledLink=false,scheduled=null;
@@ -54,6 +69,7 @@ function styles(){
  '.phTrophy{background:linear-gradient(140deg,#3a2b48,#161324);border:1px solid #655578;border-radius:13px;padding:11px 8px;text-align:center;min-width:0}',
  '.phTrophy b{color:#fff;display:block;font-size:12px;margin-top:7px}.phTrophy p{color:#d3c2dd;font-size:11px;line-height:1.45;margin:5px 0}',
  '.phTrophy small{color:#c0b1d0;font-size:10px}.phTrophy .phSymbol{display:block;font-size:49px;line-height:1.45;filter:drop-shadow(0 4px 10px #0008)}',
+ '.phSvg{filter:drop-shadow(0 5px 7px #0008);max-width:100%;height:78px}.phMini .phSvg{height:48px;width:48px}.phTrophy.gold .phSvg,.phMini.gold .phSvg{color:#f5ce6a}.phTrophy.ruby .phSvg,.phMini.ruby .phSvg{color:#fa8798}.phTrophy.emerald .phSvg,.phMini.emerald .phSvg{color:#58e2b3}.phTrophy.blue .phSvg,.phMini.blue .phSvg{color:#84c7ff}.phTrophy.violet .phSvg,.phMini.violet .phSvg{color:#cea1ff}.phTrophy.amber .phSvg,.phMini.amber .phSvg{color:#ffc076}.phTrophy.ice .phSvg,.phMini.ice .phSvg{color:#8eeaf4}',
  '.phTrophy.gold{border-color:#bd9b54}.phTrophy.emerald{border-color:#32aa86}.phTrophy.blue{border-color:#6796e7}.phTrophy.ruby{border-color:#d56b81}',
  '.phTrophy.ice{border-color:#6bd6e3}.phTrophy.violet{border-color:#ad7bde}.phTrophy.amber{border-color:#cb9454}',
  '.phTrophy.locked{opacity:.45;filter:grayscale(1)}.phQty{display:inline-block;border-radius:10px;padding:4px 10px;background:#624476;font-size:11px;margin:6px 0}',
@@ -123,7 +139,7 @@ function renderHome(d){
  const date=lock?new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(lock.prediction_lock_at)):'to be announced';
  const rivals=d.standings.slice(Math.max(0,rank-1),Math.min(d.standings.length,rank+2));
  const rows=rivals.map(x=>'<div class="phRivalRow '+(String(x.entrant_id)===d.uid?'me':'')+'"><span>'+(d.standings.indexOf(x)+1)+'. '+esc(x.manager_name||x.team_name)+'</span><b>'+num(x.total_points)+' pts</b></div>').join('');
- const shelf=awards.slice().sort((a,b)=>b.matchweek-a.matchweek).slice(0,3).map(a=>'<div class="phMini"><span class="phSymbol">'+awardType(a.category)[2]+'</span><b>'+esc(awardName(a.category))+'</b>MW'+a.matchweek+'</div>').join('');
+ const shelf=awards.slice().sort((a,b)=>b.matchweek-a.matchweek).slice(0,3).map(a=>'<div class="phMini '+awardType(a.category)[3]+'"><span class="phSymbol">'+trophyArtwork(a.category)+'</span><b>'+esc(awardName(a.category))+'</b>MW'+a.matchweek+'</div>').join('');
  const el=document.createElement('section');el.id='ph-personal-home';
  el.innerHTML='<div class="phHero"><div class="phEyebrow">Your personal league HQ</div><h2>Welcome back, '+esc(who(d,d.uid))+'! ⚽</h2>'+
  '<div class="phMetrics"><div class="phMetric"><strong>'+(rank>=0?rank+1:'–')+'</strong><span>League position</span></div><div class="phMetric"><strong>'+num(row?.total_points)+'</strong><span>Season points</span></div><div class="phMetric"><strong>'+stats.points+'</strong><span>MW'+week+' points</span></div></div>'+
@@ -140,7 +156,7 @@ function card(category,awards){
  const weeks=awards.map(a=>a.matchweek).sort((a,b)=>a-b);
  let detail=count?'Won in MW '+weeks.join(', '):def[4];
  if(category==='bold_call'&&count){const last=awards.slice().sort((a,b)=>b.matchweek-a.matchweek)[0];detail='Latest: '+(last.context?.home_team||'')+' v '+(last.context?.away_team||'')+' (MW'+last.matchweek+')'}
- return '<div class="phTrophy '+def[3]+' '+(count?'':'locked')+'"><span class="phSymbol">'+def[2]+'</span><b>'+esc(def[1])+'</b>'+(count?'<span class="phQty">× '+count+'</span>':'')+'<p>'+esc(detail)+'</p></div>';
+ return '<div class="phTrophy '+def[3]+' '+(count?'':'locked')+'"><span class="phSymbol">'+trophyArtwork(category)+'</span><b>'+esc(def[1])+'</b>'+(count?'<span class="phQty">× '+count+'</span>':'')+'<p>'+esc(detail)+'</p></div>';
 }
 function cabinet(d){
  const awards=myAwards(d),sports=awards.filter(a=>a.category!=='league_leader'),crowns=awards.filter(a=>a.category==='league_leader');
@@ -148,7 +164,7 @@ function cabinet(d){
  const counts='<div class="phCounts"><div class="phCount"><b>'+sports.length+'</b><span>Football trophies</span></div><div class="phCount"><b>'+crowns.length+'</b><span>Leader crowns</span></div><div class="phCount"><b>'+variety+'/7</b><span>Types collected</span></div></div>';
  const tabs='<div class="phTabs">'+[['football','Football honours'],['engagement','Engagement']].map(x=>'<button class="phTab '+(activeFilter===x[0]?'selected':'')+'" data-ph-filter="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
  let grid='';
- if(activeFilter==='engagement')grid=coming.map(x=>'<div class="phTrophy locked"><span class="phSymbol">🎖️</span><b>'+esc(x[0])+'</b><p>'+esc(x[1])+'</p><small>Coming soon: reliable activity tracking</small></div>').join('');
+ if(activeFilter==='engagement')grid=coming.map(x=>'<div class="phTrophy locked"><span class="phSymbol">'+trophyArtwork('consistency_shield')+'</span><b>'+esc(x[0])+'</b><p>'+esc(x[1])+'</p><small>Coming soon: reliable activity tracking</small></div>').join('');
  else grid=defs.filter(x=>x[0]!=='league_leader').map(x=>card(x[0],sports.filter(a=>a.category===x[0]))).join('');
  return counts+tabs+'<div class="phSection">'+(activeFilter==='engagement'?'Participation achievements':'Performance trophy shelf')+'</div><div class="phGrid">'+grid+'</div>'+
  (activeFilter==='football'?'<div class="phSection">👑 League Leader crowns</div><div class="phGrid">'+card('league_leader',crowns)+'</div>':'')+
