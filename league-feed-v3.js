@@ -84,6 +84,14 @@ function lfCss(){
     .lfTimelineHead{margin-top:17px;border-top:1px solid #e9e5f1;
       padding-top:12px;font-size:12px;font-weight:900;color:#39304c}
     .lfTimelineHelp{display:block;font-size:11px;color:#736b7d;font-weight:500;margin-top:3px}
+    .lfArchive{margin-top:10px;border:1px solid #d8cbed;border-radius:12px;background:#f7f3ff;overflow:hidden}
+    .lfArchive>summary{padding:13px 12px;cursor:pointer;list-style:none;font-size:12px;font-weight:900;color:#4d2b86}
+    .lfArchive>summary::-webkit-details-marker{display:none}
+    .lfArchive>summary:focus-visible{outline:2px solid #6630a2;outline-offset:-3px}
+    .lfArchive>summary small{display:block;font-size:10px;font-weight:500;color:#756888;margin-top:4px}
+    .lfArchive[open]>summary{border-bottom:1px solid #e6d9f3}
+    .lfArchiveList{padding:4px 8px 10px;background:#faf8fe}
+
     .lfStoryFeature .lfTag{background:#f0eaff;color:#513190}
     .lfDate{font-size:10px}
     .lfTag{font-size:9px}
@@ -326,15 +334,24 @@ function lfFeedCard(){
     ||all.find(m=>['owner_generator','daily_recap'].includes(m.source_type))
     ||all[0];
   const earlier=all.filter(m=>m.id!==featured.id);
+  // Keep the latest update prominent and the two next-most-recent messages visible.
+  // Put the rest behind one accessible, expandable archive instead of adding
+  // dozens of collapsed stories to the homepage.
+  const recent=earlier.slice(0,2),archive=earlier.slice(2);
   const ownerFeatured=['owner_generator','daily_recap'].includes(featured.source_type)&&!featured.private;
   return '<section class="hfCard lfCard" aria-label="League message feed">'+
     '<div class="lfHead"><h3>📣 '+(ownerFeatured?'Latest from James':'League messages')+'</h3>'+
     '<span>'+all.length+' message'+(all.length===1?'':'s')+'</span></div>'+
     lfStory(featured,false)+
-    (earlier.length
-      ?'<div class="lfTimelineHead">🕘 More league updates'+
-        '<span class="lfTimelineHelp">Newest first · scroll down and tap any message to read every word</span></div>'+
-        earlier.map(m=>lfStory(m,true)).join('')
+    (recent.length
+      ?'<div class="lfTimelineHead">🕘 Recent updates'+
+        '<span class="lfTimelineHelp">Tap an update to read the full original message</span></div>'+
+        recent.map(m=>lfStory(m,true)).join('')
+      :'')+
+    (archive.length
+      ?'<details class="lfArchive"><summary>🗂️ Older league messages ('+archive.length+')'+
+        '<small>Browse previous updates · newest first · every full message retained</small></summary>'+
+        '<div class="lfArchiveList">'+archive.map(m=>lfStory(m,true)).join('')+'</div></details>'
       :'')+
     '</section>';
 }
@@ -398,8 +415,13 @@ function lfInject(){
   const scrollY=window.scrollY;
   const openStories=[...slot.querySelectorAll('.lfStoryCollapsed[open]')]
     .map(d=>d.dataset.lfStory).filter(Boolean);
+  const archiveWasOpen=!!slot.querySelector('.lfArchive[open]');
 
   slot.innerHTML=lfFeedCard()+lfRepliesCard();
+  if(archiveWasOpen){
+    const archiveEl=slot.querySelector('.lfArchive');
+    if(archiveEl)archiveEl.open=true;
+  }
   slot.dataset.lfSignature=signature;
 
   for(const id of openStories){
