@@ -150,6 +150,9 @@ function renderHome(d){
  '<div class="phHomeCard"><h3>🏆 My trophy shelf</h3><div class="phShelf">'+(shelf||'No trophies yet — every week is a new chance!')+'</div><button class="phBtn" style="margin-top:11px;background:#432a7b;color:#fff" data-ph-open="hall">Hall of Fame</button></div>';
  el.onclick=e=>{const b=e.target.closest('[data-ph-open]');if(b)open(b.dataset.phOpen)};
  const banner=main.querySelector(':scope > .banner');if(banner)banner.insertAdjacentElement('afterend',el);else main.prepend(el);
+ // Keep the latest notice board prominent directly beneath the personal hero.
+ const notice=[...main.querySelectorAll(':scope > .card')].find(card=>card.querySelector('.section h2')?.textContent?.includes('Notice Board'));
+ if(notice){const more=[...el.querySelectorAll('.phHomeCard')];more.reverse().forEach(card=>notice.insertAdjacentElement('afterend',card))}
 }
 function card(category,awards){
  const def=awardType(category);const count=awards.length;
