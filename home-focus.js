@@ -337,6 +337,7 @@ function hfHeroHtml(d){
         ${fav?'':`<button type="button" class="hfHeroBtn" data-hf-go="more">Choose club</button>`}
         <button type="button" class="hfHeroBtn ${fav?'':'ghost'}" data-hf-go="table">League table</button>
         <button type="button" class="hfHeroBtn ghost" data-hf-go="stats">My stats</button>
+         <button type="button" class="hfHeroBtn" data-hf-trophies="open">🏆 My trophies</button>
       </div>
     </div>
   </section>`;
@@ -441,6 +442,14 @@ function hfPrepareLegacy(host){
 }
 
 function hfWire(host){
+  host.querySelectorAll('[data-hf-trophies]').forEach(b=>{
+    if(b.dataset.hfWired)return;
+    b.dataset.hfWired='1';
+    b.addEventListener('click',()=>{
+      if(typeof window.openPLPTrophyCabinet==='function')window.openPLPTrophyCabinet();
+      else alert('The Trophy Cabinet is loading. Please reopen the homepage and try again.');
+    });
+  });
   host.querySelectorAll('[data-hf-go]').forEach(b=>{
     if(b.dataset.hfWired) return;
     b.dataset.hfWired='1';
