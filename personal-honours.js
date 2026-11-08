@@ -37,6 +37,7 @@ function trophyArtwork(category){
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const num=n=>Number(n||0);
 let cached=null,cacheAt=0,fetching=null,activeTab='cabinet',activeFilter='football',handledLink=false,scheduled=null;
+let selectedMemberId=null,selectedCategory=null,selectedAwardId=null,selectionFrom='league';
 function styles(){
  if(document.getElementById('plp-honours-style'))return;
  const e=document.createElement('style');e.id='plp-honours-style';
@@ -85,6 +86,25 @@ function styles(){
  '.phHallRow{display:flex;justify-content:space-between;gap:6px;border-bottom:1px solid #57456b;padding:11px 1px;font-size:12px}.phHallRow b{color:#fff}.phHallRow span{color:#d9c9e4}',
  '.phGameRow{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #57456b;padding:9px 0;font-size:12px}.phGameRow b{color:#fff;white-space:nowrap}.phGameRow small{display:block;color:#bea9d4}',
  '.phHelp{font-size:11px;color:#bfaed1;line-height:1.5;margin-top:12px}',
+ 
+'.phSwitcher{position:sticky;top:-16px;z-index:10;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:10px 0;background:linear-gradient(#1b142d 85%,#1b142deb);margin:7px 0 5px}',
+'.phSwitch{border:1px solid #6b537c;border-radius:10px;background:#3a294c;color:#fff;font-weight:800;font-size:10px;min-height:42px;padding:8px 2px;white-space:nowrap;cursor:pointer}',
+'.phSwitch.selected{background:#f5eafc;color:#322049;border-color:#f5eafc}',
+'.phFilterBar{display:flex;gap:7px;margin:14px 0}.phFilter{background:#3e2c55;color:#f3eafb;border:1px solid #67557a;border-radius:9px;padding:9px 12px;font-size:11px;font-weight:800}.phFilter.selected{background:#f2e9fc;color:#342044}',
+'.phBack{display:block;background:#45335b;color:#fff;border:1px solid #78608f;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;margin:12px 0;text-align:left;cursor:pointer}',
+'.phTrophyAction{width:100%;display:block;cursor:pointer;font-family:inherit}.phTrophyAction:active,.phHallAction:active,.phLeagueCategory:active{transform:scale(.985)}',
+'.phTrophyAction:focus-visible,.phSwitch:focus-visible,.phHallAction:focus-visible{outline:3px solid #e8c36c;outline-offset:2px}',
+'.phHallAction{width:100%;text-align:left;cursor:pointer;border-left:0;border-right:0;border-top:0;background:transparent;color:inherit;font-family:inherit;align-items:center}',
+'.phHallAction small{display:block;margin-top:3px;color:#bba8cd;font-size:10px;font-weight:400}',
+'.phChevron{font-size:21px;color:#efdfab;font-weight:950;vertical-align:middle}',
+'.phLeagueCategory{display:flex;align-items:center;gap:9px;background:#30233e;color:#f9f3ff;text-align:left;padding:9px 8px;border-radius:12px;border:1px solid #604a78;width:100%;margin:7px 0;cursor:pointer;font-family:inherit}',
+'.phLeagueCategoryArt{flex:0 0 52px;height:52px;display:grid;place-items:center}.phLeagueCategoryArt .phSvg{width:44px;height:44px}.phLeagueCategoryArt.gold{color:#efc665}.phLeagueCategoryArt.ruby{color:#fe8a9d}.phLeagueCategoryArt.emerald{color:#59d5a7}.phLeagueCategoryArt.blue{color:#85b6f0}.phLeagueCategoryArt.violet{color:#cc9cf5}.phLeagueCategoryArt.amber{color:#ffbe6a}.phLeagueCategoryArt.ice{color:#6ce3e3}',
+'.phLeagueCategoryInfo{flex:1;min-width:0}.phLeagueCategoryInfo b{display:block;color:#fff;font-size:12px}.phLeagueCategoryInfo small{display:block;color:#c0acd5;font-size:10px;margin:2px 0}.phLeagueCategoryInfo span{display:block;color:#eee0f7;font-size:10px;line-height:1.3}',
+'.phAwardRow{display:flex;text-align:left;align-items:center;justify-content:space-between;gap:8px;background:#302341;color:#fff;border:1px solid #604b77;border-radius:10px;width:100%;padding:11px 10px;margin:6px 0;font-family:inherit;cursor:pointer}',
+'.phAwardRow b{font-size:12px;color:#fff}.phAwardRow small{display:block;font-size:11px;color:#d9c5e6;line-height:1.4;margin-top:4px}',
+'.phAwardHero{text-align:center;border:1px solid #715e82;background:linear-gradient(135deg,#48336b,#292043);border-radius:16px;padding:18px;margin:12px 0}.phAwardHero .phSymbol{display:block;color:#ffd073}.phAwardHero .phSymbol svg{height:102px;width:102px}.phAwardHero h2{color:#fff;font-size:22px}.phAwardHero p{color:#d8c5e9;font-size:12px}',
+'.phAwardExplanation{background:#453257;border-radius:12px;padding:14px;color:#fff;font-size:15px;line-height:1.45;font-weight:700}',
+
  '@media(min-width:650px){.phOverlay{align-items:center;padding:15px}.phPanel{height:auto;max-height:92dvh;border-radius:18px}.phGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}'
  ].join('');
  document.head.appendChild(e);
@@ -194,75 +214,193 @@ function renderHome(d){
  el.onclick=e=>{const b=e.target.closest('[data-ph-open]');if(b)open(b.dataset.phOpen)};
  placeHonours(main,el);
 }
-function card(category,awards){
- const def=awardType(category);const count=awards.length;
- const weeks=awards.map(a=>a.matchweek).sort((a,b)=>a-b);
- let detail=count?'Won in MW '+weeks.join(', '):def[4];
- if(category==='bold_call'&&count){const last=awards.slice().sort((a,b)=>b.matchweek-a.matchweek)[0];detail='Latest: '+(last.context?.home_team||'')+' v '+(last.context?.away_team||'')+' (MW'+last.matchweek+')'}
- return '<div class="phTrophy '+def[3]+' '+(count?'':'locked')+'"><span class="phSymbol">'+trophyArtwork(category)+'</span><b>'+esc(def[1])+'</b>'+(count?'<span class="phQty">× '+count+'</span>':'')+'<p>'+esc(detail)+'</p></div>';
+
+function ownedBy(d,uid){
+ return d.awards.filter(a=>String(a.user_id)===String(uid));
 }
-function cabinet(d){
- const awards=myAwards(d),sports=awards.filter(a=>a.category!=='league_leader'),crowns=awards.filter(a=>a.category==='league_leader');
- const variety=new Set(sports.map(a=>a.category)).size;
- const counts='<div class="phCounts"><div class="phCount"><b>'+sports.length+'</b><span>Football trophies</span></div><div class="phCount"><b>'+crowns.length+'</b><span>Leader crowns</span></div><div class="phCount"><b>'+variety+'/7</b><span>Types collected</span></div></div>';
- const tabs='<div class="phTabs">'+[['football','Football honours'],['engagement','Engagement']].map(x=>'<button class="phTab '+(activeFilter===x[0]?'selected':'')+'" data-ph-filter="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
- let grid='';
- if(activeFilter==='engagement')grid=coming.map(x=>'<div class="phTrophy locked"><span class="phSymbol">'+trophyArtwork('consistency_shield')+'</span><b>'+esc(x[0])+'</b><p>'+esc(x[1])+'</p><small>Coming soon: reliable activity tracking</small></div>').join('');
- else grid=defs.filter(x=>x[0]!=='league_leader').map(x=>card(x[0],sports.filter(a=>a.category===x[0]))).join('');
- return counts+tabs+'<div class="phSection">'+(activeFilter==='engagement'?'Participation achievements':'Performance trophy shelf')+'</div><div class="phGrid">'+grid+'</div>'+
- (activeFilter==='football'?'<div class="phSection">👑 League Leader crowns</div><div class="phGrid">'+card('league_leader',crowns)+'</div>':'')+
- '<p class="phHelp">Historical trophies are backed by saved results and predictions. Tied winners each receive a trophy. Crowns are counted separately; activity awards never change your prediction points.</p>';
+function statsFor(d,uid){
+ const list=ownedBy(d,uid),sports=list.filter(a=>a.category!=='league_leader');
+ return {list,sports,crowns:list.length-sports.length,types:new Set(sports.map(a=>a.category)).size};
+}
+function awardDetailText(a){
+ const x=a.context||{},v=num(a.metric);
+ switch(a.category){
+  case 'matchweek_champion':return v+' points in Matchweek '+a.matchweek;
+  case 'exact_master':return v+' exact score'+(v===1?'':'s')+' in Matchweek '+a.matchweek;
+  case 'league_leader':return 'Finished Matchweek '+a.matchweek+' top of the overall league on '+v+' points';
+  case 'biggest_climber':return 'Climbed '+v+' league places: '+num(x.before)+'th → '+num(x.after)+'th';
+  case 'consistency_shield':return v+' correct match outcomes';
+  case 'precision_trophy':return v+'% exact-score conversion ('+num(x.exacts)+' exacts from '+num(x.scoring_picks)+' scoring predictions)';
+  case 'bold_call':return (x.home_team||'')+' v '+(x.away_team||'')+' · '+(x.predicted_score||'')+' (final '+(x.actual_score||'')+'); '+num(x.backed_by)+' player'+(num(x.backed_by)===1?'':'s')+' backed that result';
+  case 'final_day_hero':return v+' points on the matchweek’s final playing day';
+  default:return v+' points';
+ }
+}
+function card(category,awards){
+ const def=awardType(category),count=awards.length;
+ const weeks=awards.map(a=>num(a.matchweek)).sort((a,b)=>a-b);
+ const detail=count?'Won in Matchweek'+(count===1?' ':'s ')+weeks.join(', '):def[4];
+ const inside='<span class="phSymbol">'+trophyArtwork(category)+'</span><b>'+esc(def[1])+'</b>'+
+ (count?'<span class="phQty">× '+count+'</span>':'')+'<p>'+esc(detail)+'</p>'+
+ (count?'<small>Tap for award details ›</small>':'<small>Not yet earned</small>');
+ if(!count)return '<div class="phTrophy '+def[3]+' locked" aria-label="'+esc(def[1])+': not earned">'+inside+'</div>';
+ return '<button type="button" class="phTrophy phTrophyAction '+def[3]+'" data-ph-category="'+esc(category)+'" aria-label="Open '+esc(def[1])+' trophies">'+inside+'</button>';
+}
+function countersFor(s){
+ return '<div class="phCounts"><div class="phCount"><b>'+s.sports.length+'</b><span>Performance trophies</span></div>'+
+ '<div class="phCount"><b>'+s.crowns+'</b><span>Leader crowns</span></div>'+
+ '<div class="phCount"><b>'+s.types+'/7</b><span>Trophy types</span></div></div>';
+}
+function cabinet(d,uid=d.uid){
+ const s=statsFor(d,uid);
+ const tabs='<div class="phFilterBar">'+[['football','Football honours'],['engagement','Engagement']].map(x=>'<button type="button" class="phFilter '+(activeFilter===x[0]?'selected':'')+'" data-ph-filter="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
+ const grid=activeFilter==='engagement'
+  ?coming.map(x=>'<div class="phTrophy locked"><span class="phSymbol">'+trophyArtwork('consistency_shield')+'</span><b>'+esc(x[0])+'</b><p>'+esc(x[1])+'</p><small>Coming soon · genuine activity tracking</small></div>').join('')
+  :defs.filter(x=>x[0]!=='league_leader').map(x=>card(x[0],s.sports.filter(a=>a.category===x[0]))).join('');
+ const isMe=String(uid)===String(d.uid);
+ return (isMe?'':'<button type="button" class="phBack" data-ph-tab="league">← All league cabinets</button>')+
+ '<p class="phHelp">'+(isMe?'Your earned trophies from completed matchweeks.':'Viewing '+esc(who(d,uid))+'’s collection — trophy holders are visible to all league members.')+'</p>'+
+ countersFor(s)+tabs+
+ '<div class="phSection">'+(activeFilter==='engagement'?'Participation awards — preview':'Performance trophy shelf')+'</div><div class="phGrid">'+grid+'</div>'+
+ (activeFilter==='football'?'<div class="phSection">👑 League Leader crowns</div><div class="phGrid">'+card('league_leader',s.list.filter(a=>a.category==='league_leader'))+'</div>':'')+
+ '<p class="phHelp">Tap an earned trophy to see every matchweek and why it was awarded. Tied winners receive separate trophies. Engagement awards do not affect football points.</p>';
+}
+function membersWithAwards(d){
+ const human=d.standings.filter(x=>x.entrant_type==='human');
+ return human.map(row=>({id:row.entrant_id,name:who(d,row.entrant_id),...statsFor(d,row.entrant_id)}))
+ .sort((a,b)=>b.sports.length-a.sports.length||b.types-a.types||b.crowns-a.crowns||a.name.localeCompare(b.name));
+}
+function leagueCabinet(d){
+ const people=membersWithAwards(d);
+ const categories=defs.map(def=>{
+  const all=d.awards.filter(a=>a.category===def[0]),peopleById=new Map();
+  for(const a of all)peopleById.set(a.user_id,(peopleById.get(a.user_id)||0)+1);
+  const holders=[...peopleById].sort((a,b)=>b[1]-a[1]||who(d,a[0]).localeCompare(who(d,b[0]))).map(([id,count])=>who(d,id)+(count>1?' ×'+count:''));
+  return '<button type="button" class="phLeagueCategory" data-ph-league-category="'+def[0]+'">'+
+   '<span class="phLeagueCategoryArt '+def[3]+'">'+trophyArtwork(def[0])+'</span><span class="phLeagueCategoryInfo">'+
+   '<b>'+esc(def[1])+'</b><small>'+all.length+' awarded · '+peopleById.size+' holder'+(peopleById.size===1?'':'s')+'</small>'+
+   '<span>'+esc(holders.length?holders.join(', '):'No winners yet')+'</span></span><span class="phChevron">›</span></button>';
+ }).join('');
+ return '<p class="phHelp"><strong>The league trophy cabinet is open to every active player.</strong> Browse all '+people.length+' members, see who holds every award, and tap a name to inspect their cabinet.</p>'+
+ '<div class="phSection">🏆 Who holds each trophy?</div><div class="phLeagueCategories">'+categories+'</div>'+
+ '<div class="phSection">👥 Every player’s cabinet</div>'+
+ people.map((p,i)=>'<button type="button" class="phHallRow phHallAction" data-ph-member="'+esc(p.id)+'">'+
+  '<span><b>'+(i+1)+'. '+esc(p.name)+'</b><small> '+p.types+' trophy types</small></span>'+
+  '<span>🏆 '+p.sports.length+' · 👑 '+p.crowns+' <span class="phChevron">›</span></span></button>').join('');
 }
 function hall(d){
- const map=new Map();
- for(const a of d.awards){
-  if(!map.has(a.user_id))map.set(a.user_id,{id:a.user_id,football:0,crowns:0,types:new Set()});
-  const t=map.get(a.user_id);if(a.category==='league_leader')t.crowns++;else{t.football++;t.types.add(a.category)}
- }
- const ranks=[...map.values()].sort((a,b)=>b.football-a.football||b.types.size-a.types.size||b.crowns-a.crowns);
- return '<div class="phSection">🏛️ Hall of Fame</div><p class="phHelp">Performance trophies determine the ranking. Weeks leading the league are tracked separately.</p>'+
- ranks.map((t,i)=>'<div class="phHallRow"><b>'+(i+1)+'. '+esc(who(d,t.id))+'</b><span>🏆 '+t.football+' · 👑 '+t.crowns+' · '+t.types.size+' types</span></div>').join('');
+ const people=membersWithAwards(d);
+ return '<div class="phSection">🏛️ Hall of Fame</div><p class="phHelp">Performance honours rank the players. Weeks at the top count as separate crowns. Select any name to view their complete trophy collection.</p>'+
+ people.map((p,i)=>'<button type="button" class="phHallRow phHallAction" data-ph-member="'+esc(p.id)+'">'+
+ '<span><b>'+(i+1)+'. '+esc(p.name)+'</b><small> '+p.types+'/7 types collected</small></span>'+
+ '<span>🏆 '+p.sports.length+' · 👑 '+p.crowns+' <span class="phChevron">›</span></span></button>').join('')+
+ '<button type="button" class="phBack" data-ph-tab="league">Browse the full league cabinet ›</button>';
+}
+function categoryBreakdown(d,category){
+ const def=awardType(category),own=selectedMemberId;
+ const arr=d.awards.filter(a=>a.category===category && (own===null||String(a.user_id)===String(own)))
+  .sort((a,b)=>b.matchweek-a.matchweek||who(d,a.user_id).localeCompare(who(d,b.user_id)));
+ const title=def[2]+' '+def[1],subtitle=own===null?'All winners across the league':'Trophies earned by '+who(d,own);
+ return '<button type="button" class="phBack" data-ph-back>← Back</button>'+
+ '<div class="phSection">'+esc(title)+'</div><p class="phHelp">'+esc(def[4])+' · '+esc(subtitle)+'</p>'+
+ (arr.length?arr.map(a=>'<button type="button" class="phAwardRow" data-ph-award="'+esc(a.id)+'">'+
+ '<span><b>MW'+a.matchweek+' · '+esc(who(d,a.user_id))+'</b><small>'+esc(awardDetailText(a))+'</small></span><span class="phChevron">›</span></button>').join(''):'<p class="phHelp">No qualifying trophies awarded.</p>');
+}
+function individualAward(d){
+ const a=d.awards.find(a=>String(a.id)===String(selectedAwardId));
+ if(!a)return '<button class="phBack" data-ph-back>← Back</button><p class="phHelp">Award not found.</p>';
+ const def=awardType(a.category);
+ const others=d.awards.filter(x=>x.category===a.category&&x.matchweek===a.matchweek).map(x=>who(d,x.user_id));
+ return '<button type="button" class="phBack" data-ph-back>← Back to trophies</button>'+
+ '<div class="phAwardHero"><div class="phSymbol">'+trophyArtwork(a.category)+'</div><h2>'+esc(def[1])+'</h2>'+
+ '<p>Matchweek '+a.matchweek+' · Season '+esc(a.season)+'</p></div>'+
+ '<div class="phSection">Awarded to '+esc(who(d,a.user_id))+'</div>'+
+ '<div class="phAwardExplanation">'+esc(awardDetailText(a))+'</div>'+
+ '<p class="phHelp">'+esc(def[4])+'. '+(others.length>1?'Joint winners: '+esc(others.join(', '))+'.':'This award was won outright.')+'</p>'+
+ '<button type="button" class="phBack" data-ph-tab="league">Browse all league trophies ›</button>';
 }
 function story(d){
  const week=latestWeek(d),w=weekly(d,week),awards=myAwards(d).filter(a=>a.matchweek===week);
  const rows=w.matches.map(x=>'<div class="phGameRow"><div>'+esc(x.name)+'<small>Your pick '+esc(x.guess)+' · Actual '+esc(x.score)+'</small></div><b>'+x.pts+' pts</b></div>').join('');
  return '<div class="phSection">Your Matchweek '+week+' review</div>'+
  '<div class="phCounts"><div class="phCount"><b>'+w.points+'</b><span>Points</span></div><div class="phCount"><b>'+w.exacts+'</b><span>Exact scores</span></div><div class="phCount"><b>'+w.correct+'</b><span>Scoring picks</span></div></div>'+
- '<div class="phSection">Your newly earned trophies</div>'+
- (awards.length?'<div class="phGrid">'+awards.map(a=>card(a.category,[a])).join('')+'</div>':'<p class="phHelp">No trophies this week — you can earn one next round.</p>')+
+ '<div class="phSection">Your trophies from this round</div>'+
+ (awards.length?'<div class="phGrid">'+[...new Set(awards.map(a=>a.category))].map(cat=>card(cat,awards.filter(a=>a.category===cat))).join('')+'</div>':'<p class="phHelp">No trophies this week — another matchweek is another chance!</p>')+
  '<div class="phSection">Match-by-match breakdown</div>'+rows+
- '<button class="phBtn" style="margin-top:16px" data-ph-link="weekly">Copy this story’s WhatsApp link</button>';
+ '<button class="phBack" style="margin-top:15px" data-ph-link="weekly">🔗 Copy this story’s WhatsApp link</button>';
 }
 function close(){
  const node=document.getElementById('ph-overlay');if(!node)return;
  document.body.style.overflow=node.dataset.previous||'';node.remove();
+ selectedAwardId=null;selectedCategory=null;selectedMemberId=null;
+}
+function activeMemberId(d){return activeTab==='player'?(selectedMemberId||d.uid):d.uid}
+function tabGo(tab,d){
+ if(!['cabinet','league','hall','story','player'].includes(tab))return;
+ activeTab=tab; selectedCategory=null;selectedAwardId=null;
+ if(tab==='cabinet')selectedMemberId=null;
+ redraw(d);
 }
 function redraw(d){
  const ov=document.getElementById('ph-overlay');if(!ov)return;
- ov.innerHTML='<div class="phPanel" role="dialog" aria-modal="true" aria-label="Your trophy cabinet">'+
- '<div class="phHeader"><div><div class="phEyebrow">Premier League Predictions</div><h2>'+(activeTab==='cabinet'?'🏆 '+esc(who(d,d.uid))+'’s Trophy Cabinet':activeTab==='hall'?'🏛️ Hall of Fame':'⚽ Your Weekly Story')+'</h2><div class="phSub">2026/27 · your season, your achievements</div></div><button class="phClose" data-ph-close>✕</button></div>'+
- '<div class="phTabs">'+[['cabinet','My Cabinet'],['hall','Hall of Fame'],['story','My Weekly Story']].map(x=>'<button class="phTab '+(activeTab===x[0]?'selected':'')+'" data-ph-tab="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
- (activeTab==='cabinet'?cabinet(d):activeTab==='hall'?hall(d):story(d))+'</div>';
+ const tabNames={cabinet:'🏆 My Cabinet',league:'🏟️ League Cabinet',hall:'👑 Hall of Fame',story:'⚽ Weekly Review',player:'🏆 '+who(d,selectedMemberId)};
+ const title=selectedAwardId?'Trophy details':selectedCategory?'Trophy winners':tabNames[activeTab]||tabNames.cabinet;
+ const content=selectedAwardId?individualAward(d):selectedCategory?categoryBreakdown(d,selectedCategory):
+ activeTab==='cabinet'?cabinet(d):activeTab==='league'?leagueCabinet(d):activeTab==='hall'?hall(d):
+ activeTab==='player'?cabinet(d,selectedMemberId||d.uid):story(d);
+ ov.innerHTML='<div class="phPanel" role="dialog" aria-modal="true" aria-label="Trophy collection">'+
+ '<div class="phHeader"><div><div class="phEyebrow">Premier League Predictions · 2026/27</div><h2>'+esc(title)+'</h2><div class="phSub">Verified historical awards · shared with league members</div></div><button type="button" class="phClose" data-ph-close aria-label="Close trophy cabinet">✕</button></div>'+
+ '<nav class="phSwitcher" aria-label="Trophy cabinet sections">'+
+ [['cabinet','🏆 Mine'],['league','🏟️ League'],['hall','👑 Hall'],['story','⚽ Review']].map(x=>
+ '<button type="button" class="phSwitch '+((activeTab===x[0]||(activeTab==='player'&&x[0]==='league'))?'selected':'')+'" data-ph-tab="'+x[0]+'">'+x[1]+'</button>').join('')+'</nav>'+
+ '<div class="phPanelBody">'+content+'</div></div>';
+ const panel=ov.querySelector('.phPanel');
+ if(panel)panel.scrollTop=0;
  ov.onclick=e=>{
-  const btn=e.target.closest('button');if(!btn){if(e.target===ov)close();return}
-  if(btn.hasAttribute('data-ph-close'))close();
-  else if(btn.dataset.phTab){activeTab=btn.dataset.phTab;redraw(d)}
-  else if(btn.dataset.phFilter){activeFilter=btn.dataset.phFilter;redraw(d)}
-  else if(btn.dataset.phLink){
-   const link=location.origin+location.pathname+'?open='+encodeURIComponent(btn.dataset.phLink);
-   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(link).then(()=>alert('WhatsApp link copied.')).catch(()=>prompt('Copy link:',link));
-   else prompt('Copy link:',link);
+  const btn=e.target.closest('button');
+  if(!btn){if(e.target===ov)close();return}
+  if(btn.hasAttribute('data-ph-close')){close();return}
+  if(btn.hasAttribute('data-ph-back')){
+    if(selectedAwardId){selectedAwardId=null;redraw(d);return}
+    if(selectedCategory){selectedCategory=null;redraw(d);return}
+    tabGo('league',d);return;
+  }
+  if(btn.dataset.phTab){tabGo(btn.dataset.phTab,d);return}
+  if(btn.dataset.phMember){
+    const valid=d.standings.some(s=>s.entrant_type==='human'&&String(s.entrant_id)===String(btn.dataset.phMember));
+    if(!valid)return;
+    selectedMemberId=btn.dataset.phMember; activeTab='player'; selectedCategory=null;selectedAwardId=null;
+    redraw(d);return;
+  }
+  if(btn.dataset.phLeagueCategory){
+    selectedMemberId=null;selectedCategory=btn.dataset.phLeagueCategory;selectedAwardId=null;
+    redraw(d);return;
+  }
+  if(btn.dataset.phFilter){activeFilter=btn.dataset.phFilter;redraw(d);return}
+  if(btn.dataset.phCategory){
+    selectedMemberId=activeTab==='player'?selectedMemberId:d.uid;
+    selectedCategory=btn.dataset.phCategory;selectedAwardId=null;
+    redraw(d);return;
+  }
+  if(btn.dataset.phAward){selectedAwardId=btn.dataset.phAward;redraw(d);return}
+  if(btn.dataset.phLink){
+    const url=location.origin+location.pathname+'?open='+encodeURIComponent(btn.dataset.phLink);
+    if(navigator.clipboard?.writeText)navigator.clipboard.writeText(url).then(()=>alert('WhatsApp link copied.')).catch(()=>prompt('Copy link:',url));
+    else prompt('Copy link:',url);
   }
  };
 }
 async function open(tab='cabinet'){
- styles();activeTab=tab;
+ styles();
+ activeTab=['cabinet','league','hall','story'].includes(tab)?tab:'cabinet';
+ selectedMemberId=null;selectedCategory=null;selectedAwardId=null;
  let ov=document.getElementById('ph-overlay');
  if(!ov){ov=document.createElement('div');ov.id='ph-overlay';ov.className='phOverlay';ov.dataset.previous=document.body.style.overflow;document.body.appendChild(ov)}
- document.body.style.overflow='hidden';ov.innerHTML='<div class="phPanel">Loading your honours…</div>';
- try{const d=await load();if(d)redraw(d);else ov.innerHTML='<div class="phPanel">Sign in to view your awards. <button class="phClose" onclick="window.closePLPTrophies()">Close</button></div>'}
+ document.body.style.overflow='hidden';ov.innerHTML='<div class="phPanel">Loading league trophies…</div>';
+ try{const d=await load();if(d)redraw(d);else ov.innerHTML='<div class="phPanel">Sign in as a league member to view trophy awards. <button class="phClose" onclick="window.closePLPTrophies()">Close</button></div>'}
  catch(e){console.warn('Trophies unavailable:',e);ov.innerHTML='<div class="phPanel">Unable to load trophies at present. <button class="phClose" onclick="window.closePLPTrophies()">Close</button></div>'}
 }
+
 function scan(){
  if(scheduled)return;
  scheduled=setTimeout(async()=>{
