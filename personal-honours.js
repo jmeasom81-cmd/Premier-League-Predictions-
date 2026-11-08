@@ -210,8 +210,17 @@ function renderHome(d){
  (nextRound?'<p class="phInfo">Next: <b>MW'+nextRound+'</b> · <b>'+missing.length+'/'+roundFixtures.length+'</b> picks to make · first lock '+esc(date)+'</p>':'<p class="phInfo">All upcoming picks accounted for.</p>')+
  '<div class="phActions"><button class="phBtn" data-ph-open="cabinet">🏆 View my cabinet</button><button class="phBtn alt" data-ph-open="story">My weekly story</button></div></div>'+
  '<div class="phHomeCard"><h3>⚔️ Your nearest rivals</h3>'+rows+'</div>'+
- '<div class="phHomeCard"><h3>🏆 Your latest trophies</h3><div class="phShelf">'+(shelf||'No trophies yet — every week is a new chance!')+'</div><button class="phBtn" style="margin-top:11px;background:#432a7b;color:#fff" data-ph-open="hall">View Hall of Fame</button></div>';
- el.onclick=e=>{const b=e.target.closest('[data-ph-open]');if(b)open(b.dataset.phOpen)};
+ '<div class="phHomeCard"><h3>🏆 Your latest trophies</h3><div class="phShelf">'+(shelf||'No trophies yet — every week is a new chance!')+'</div>'+
+ '<div class="phActions" style="margin-top:11px"><button type="button" class="phBtn" style="background:#432a7b;color:#fff" data-ph-open="league">🏟️ League cabinets</button>'+
+ '<button type="button" class="phBtn" style="background:#eee6fc;color:#3e2174" data-ph-open="hall">👑 Hall of Fame</button></div></div>';
+ // Attach direct event handlers BEFORE moving the section into the existing Home
+ // layout. A button's own handler avoids parent shortcuts stealing its click.
+ el.querySelectorAll('[data-ph-open]').forEach(btn=>{
+  btn.addEventListener('click',e=>{
+   e.preventDefault();e.stopPropagation();
+   open(btn.dataset.phOpen);
+  });
+ });
  placeHonours(main,el);
 }
 
@@ -410,10 +419,13 @@ function scan(){
    const d=await load();if(!d)return;renderHome(d);
    if(!handledLink){
     const requested=new URLSearchParams(location.search).get('open');
-    if(['trophies','weekly','match','hall'].includes(requested)){
+    if(['trophies','weekly','match','hall','league','predict'].includes(requested)){
      handledLink=true;
      if(requested==='match')window.openPLPMatchCentre?.();
-     else open(requested==='trophies'?'cabinet':requested==='weekly'?'story':'hall');
+     else if(requested==='predict') {
+      if(typeof window.setViewGlobal==='function')window.setViewGlobal('predict');
+      else document.querySelector('#nav button[data-v="predict"]')?.click();
+     } else open(requested==='trophies'?'cabinet':requested==='weekly'?'story':requested);
     }
    }
   }catch(e){console.warn('Personal homepage:',e)}
@@ -421,6 +433,7 @@ function scan(){
 }
 window.openPLPTrophyCabinet=()=>open('cabinet');
 window.openPLPTrophyHall=()=>open('hall');
+window.openPLPLeagueCabinet=()=>open('league');
 window.openPLPWeeklyStory=()=>open('story');
 window.closePLPTrophies=close;
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('ph-overlay'))close()});
