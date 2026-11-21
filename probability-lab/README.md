@@ -73,3 +73,17 @@ The probability model's team-specific goal estimates now use up to the last thre
 Season statistics preferentially use the provided archive season label, which correctly groups late matches from the Covid-delayed 2019/20 season in July 2020. Fallback seasonal inference from date alone is less reliable for unusual schedules.
 
 Testing: all 15 seasons independently validated (5,700 results and zero fixture/date duplicates). A simulated combined app startup started with 486 results and then tested imports of 5, 10, 15, and a repeated 15 seasons. Result totals were 2,386, 4,286, 6,186, and 6,186. The direct public production UI still requires browser-level visual verification.
+
+## Rich historical match statistics (Match Statistics Studio)
+
+The new **Match Statistics** tab allows individuals to manually download English Premier League season CSVs from the original football-data.co.uk website and import one or more CSV files into their own browser. The site lists available Premier League seasons from 2010/11 through 2025/26. We do not poll, scrape, automatically bulk-download, mirror or republish the original provider files; Football-Data's published fair data usage policy limits automated download to twice a week and states the data is for personal/academic research (https://www.football-data.co.uk/contact.php).
+
+Supported fields: full-time and half-time home/away goals, shots, shots on target, corners, fouls, yellow and red cards. The importer handles BOM, quoted commas, dd/mm/yy and dd/mm/yyyy dates, and skips non-E0 leagues, future unscored fixtures and rows without additional match stats. Missing values stay null and are excluded from the relevant averages.
+
+The imported detailed records are stored in localStorage key pllab_match_stats_v5, separate from the shared Predictions result history and the earlier OpenFootball CC0 archives. Records are deduplicated by fixture date and normalized home/away clubs. Score disagreements with an already loaded result are counted and excluded from comparison rather than silently changing the core match score. Statistics-only records without a corresponding history match are labelled as such.
+
+The comparison screen contrasts two clubs using matching home/away venues and their last 5, 10, 20, 40 or all imported matches. It shows statistical averages and the sample count for each metric; half-time lead conversion and recovery use only matches with both half-time scores. The Match Insights page also displays venue-specific shots, on-target efforts, corners and first-half goals. These are descriptive statistics and are not yet new inputs to the Poisson prediction probabilities.
+
+Portable backup/restore includes the new stats array alongside all previously supported sections, with a 7600-record limit and a 7 MB file-size cap. Existing version-3 backups without the additional key remain compatible.
+
+Functional testing: a 2025/26 CSV-format sample (380 completed Premier League rows) was parsed into 380 detailed records and cross-checked against the OpenFootball archive, with 380 matched scores, no mismatches and no extra records on repeated import. An entire simulated application startup plus import populated the detailed comparisons and Match Insights without a thrown JavaScript exception. Live graphical browser and original-host CSV download still need user-device verification.
