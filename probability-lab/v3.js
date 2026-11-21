@@ -67,8 +67,8 @@ function renderIntel(){
  out+='</div>';
  out+='<div class="v3-buttonline"><button id="matchReportExport" class="btn secondary">Download match comparison</button><button id="matchUseScenario" class="btn secondary">Open Scenario Studio</button></div>';
  get('matchIntelBody').innerHTML=out;
- get('matchReportExport').onclick=()=>downloadIntel(home,away,hd,m);
- get('matchUseScenario').onclick=()=>{currentHome=h;currentAway=a;renderSelectors();renderScenario();document.querySelector('[data-tab="scenario"]')?.click()};
+ const exportBtn=get('matchReportExport');if(exportBtn)exportBtn.onclick=()=>downloadIntel(home,away,hd,m);
+ const studioBtn=get('matchUseScenario');if(studioBtn)studioBtn.onclick=()=>{currentHome=h;currentAway=a;renderSelectors();renderScenario();document.querySelector('[data-tab="scenario"]')?.click()};
 }
 function download(filename,text,type){
  const url=URL.createObjectURL(new Blob([text],{type:type||'text/plain;charset=utf-8'}));
