@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     const url = new URL('https://api.the-odds-api.com/v4/sports/soccer_epl/odds');
     url.searchParams.set('apiKey', key);
     url.searchParams.set('regions', 'uk');
-    url.searchParams.set('markets', 'h2h');
+    url.searchParams.set('markets', 'h2h,totals');
     url.searchParams.set('oddsFormat', 'decimal');
     const r=await fetch(url,{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(10000)});
     if(!r.ok) return res.status(502).json({error:'Odds provider returned '+r.status+'. Verify credentials, quota and subscription.'});
@@ -17,14 +17,14 @@ export default async function handler(req, res) {
       id:e.id,commence_time:e.commence_time,home_team:e.home_team,away_team:e.away_team,
       bookmakers:(e.bookmakers||[]).map(b=>({
         key:b.key,title:b.title,last_update:b.last_update,
-        markets:(b.markets||[]).filter(m=>m.key==='h2h').map(m=>({
+        markets:(b.markets||[]).filter(m=>m.key==='h2h'||m.key==='totals').map(m=>({
           key:m.key,last_update:m.last_update,
-          outcomes:(m.outcomes||[]).filter(o=>Number(o.price)>1).map(o=>({name:o.name,price:Number(o.price)}))
+          outcomes:(m.outcomes||[]).filter(o=>Number(o.price)>1).map(o=>({name:o.name,price:Number(o.price),...(Number.isFinite(Number(o.point))&&o.point!=null?{point:Number(o.point)}:{})}))
         }))
       }))
     }));
     res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=300');
-    return res.status(200).json({events,fetchedAt:new Date().toISOString(),source:'The Odds API',region:'uk',market:'h2h'});
+    return res.status(200).json({events,fetchedAt:new Date().toISOString(),source:'The Odds API',region:'uk',market:'h2h,totals'});
   } catch(e) {
     return res.status(502).json({error:'Odds temporarily unavailable. Please try again later.'});
   }
