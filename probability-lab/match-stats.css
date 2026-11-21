@@ -21,3 +21,14 @@
 #fdStatsSourceDetails{line-height:1.7}
 @media(max-width:850px){.fd-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:500px){.fd-coverage{grid-template-columns:1fr}.fd-summary .card{padding:12px}.fd-summary .value{font-size:22px}.fd-summary{gap:8px}}
+
+/* The Android in-app browser can dismiss a native select popup together with
+   the web view. Keep the season choices within the page instead. */
+.fd-season-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:7px 0 13px}
+.fd-season-choice{width:100%;padding:11px 6px;min-height:43px;border:1px solid #3c536e;border-radius:11px;background:#10263a;color:#d5eaff;font-size:13px;font-weight:700;touch-action:manipulation}
+.fd-season-choice.active,.fd-season-choice[aria-pressed="true"]{background:#1e695f;color:#fff;border:2px solid #55d3a8}
+.fd-season-choice:focus-visible{outline:2px solid #77d6ee;outline-offset:2px}
+.fd-older-years{margin:10px 0 0;border:1px solid #3a4f65;border-radius:12px;padding:11px;background:#0d1d2f}
+.fd-older-years summary{cursor:pointer;color:#c9deec;font-weight:700;font-size:13px;touch-action:manipulation}
+.fd-older-years[open] summary{margin-bottom:12px}
+@media(max-width:420px){.fd-season-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}}
