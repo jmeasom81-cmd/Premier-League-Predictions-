@@ -170,7 +170,7 @@ function exportResults(){
  for(const r of rows)csv.push([r.date||'',r.home,r.away,r.hg,r.ag].map(q).join(','));
  download('premier-league-history-export.csv',csv.join('\r\n'),'text/csv;charset=utf-8');
 }
-const keys=['pllab_history_v1','pllab_manual_fixtures_v3','pllab_manual_odds_v3','pllab_research_journal_v2'];
+const keys=['pllab_history_v1','pllab_manual_fixtures_v3','pllab_manual_odds_v3','pllab_research_journal_v2','pllab_match_stats_v5'];
 function makeBackup(){
  const records={};
  for(const key of keys){try{const val=JSON.parse(localStorage.getItem(key)||'[]');records[key]=Array.isArray(val)?val:[]}catch(e){records[key]=[]}}
@@ -179,7 +179,7 @@ function makeBackup(){
 }
 function restoreBackup(file){
  if(!file)return;
- if(file.size>3*1024*1024){setAlert('backupStatus','Backup is too large (maximum 3 MB).');return}
+ if(file.size>7*1024*1024){setAlert('backupStatus','Backup is too large (maximum 7 MB).');return}
  const reader=new FileReader();
  reader.onload=()=>{
   let parsed;
@@ -187,16 +187,18 @@ function restoreBackup(file){
   if(parsed?.schema!=='probability-lab-offline-backup'||parsed.version!==3||!parsed.records){
    setAlert('backupStatus','Not a Probability Lab version 3 backup. No changes made.');return}
   const r=parsed.records;
+  if(r.pllab_match_stats_v5===undefined)r.pllab_match_stats_v5=[]; // version 3 backups created before Match Statistics remain valid
   if(!keys.every(k=>Array.isArray(r[k]))){setAlert('backupStatus','Backup sections are missing or invalid. No changes made.');return}
-  const [history,fixtures,odds,journal]=keys.map(k=>r[k]);
-  if(history.length>7600||fixtures.length>150||odds.length>150||journal.length>100){setAlert('backupStatus','Backup exceeds the app storage limits. No changes made.');return}
+  const [history,fixtures,odds,journal,extraStats]=keys.map(k=>r[k]);
+  if(history.length>7600||fixtures.length>150||odds.length>150||journal.length>100||extraStats.length>7600){setAlert('backupStatus','Backup exceeds the app storage limits. No changes made.');return}
   function validHistory(x){return x&&typeof x.home==='string'&&typeof x.away==='string'&&Number.isInteger(x.hg)&&Number.isInteger(x.ag)&&x.hg>=0&&x.ag>=0&&x.hg<=20&&x.ag<=20&&(!x.date||typeof x.date==='string')}
   function validFixture(x){return x&&typeof x.home==='string'&&typeof x.away==='string'&&typeof x.date==='string'&&Number.isFinite(Date.parse(x.date))}
   function validOdds(x){return x&&typeof x.fixture==='string'&&typeof x.provider==='string'&&[x.h,x.d,x.a].every(n=>Number.isFinite(n)&&n>1&&n<=500)}
   function validJournal(x){return x&&typeof x.home==='string'&&typeof x.away==='string'&&typeof x.kickoff==='string'&&[x.homeProb,x.drawProb,x.awayProb].every(n=>Number.isFinite(n)&&n>=0&&n<=1)}
-  if(!history.every(validHistory)||!fixtures.every(validFixture)||!odds.every(validOdds)||!journal.every(validJournal)){
+  function validStats(x){return validHistory(x)&&/^\d{4}-\d{2}-\d{2}$/.test(x.date)&&['hthg','htag','hs','as','hst','ast','hc','ac','hf','af','hy','ay','hr','ar'].every(k=>x[k]==null||(Number.isInteger(x[k])&&x[k]>=0&&x[k]<=150))}
+  if(!history.every(validHistory)||!fixtures.every(validFixture)||!odds.every(validOdds)||!journal.every(validJournal)||!extraStats.every(validStats)){
    setAlert('backupStatus','Invalid or unsafe records found. No changes made.');return}
-  if(!window.confirm('Replace this browser’s Probability Lab history, fixtures, odds and journal with the selected backup?')){setAlert('backupStatus','Restore cancelled.');return}
+  if(!window.confirm('Replace this browser’s Probability Lab history, match statistics, fixtures, odds and journal with the selected backup?')){setAlert('backupStatus','Restore cancelled.');return}
   try{for(const k of keys)localStorage.setItem(k,JSON.stringify(r[k]));window.location.reload()}catch(e){setAlert('backupStatus','Browser storage unavailable. Restore not completed.')}
  };
  reader.readAsText(file);
