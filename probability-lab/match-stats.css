@@ -32,3 +32,14 @@
 .fd-older-years summary{cursor:pointer;color:#c9deec;font-weight:700;font-size:13px;touch-action:manipulation}
 .fd-older-years[open] summary{margin-bottom:12px}
 @media(max-width:420px){.fd-season-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Prevent ChatGPT's embedded browser being dismissed by external CSV downloads. */
+.fd-mobile-help{background:#19344b;border:1px solid #457189;border-radius:13px;padding:14px 15px;margin:0 0 18px}
+.fd-mobile-help strong{font-size:14px;line-height:1.5;color:#a8e5ff}
+.fd-mobile-help p{font-size:12px;color:#d3e7f5;line-height:1.7;margin:9px 0}
+.fd-mobile-help .btn{width:100%;text-align:center;min-height:46px}
+.fd-url-field{margin:13px 0 7px}
+.fd-url-field input{width:100%;font-size:13px;font-family:ui-monospace,monospace;cursor:text;user-select:text}
+.fd-url-field input:focus{outline:2px solid #61bfd8}
+#fdCopyLink{min-height:48px;touch-action:manipulation}
+#fdCopyStatus.good{border-color:#368b76;color:#87edc7}
