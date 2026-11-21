@@ -11,11 +11,33 @@ button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1220px;m
 @media(max-width:850px){.cards{grid-template-columns:repeat(2,1fr)}.grid2,.gridEqual{grid-template-columns:1fr}.shell{padding:16px}.topnote{display:none}.card{padding:14px}.card .value{font-size:25px}}@media(max-width:480px){.fields,.fields.three{grid-template-columns:1fr}.brand{font-size:17px}.top{align-items:start}.threeway b{font-size:19px}.cards{gap:9px}.panel{padding:15px}.heatmap{gap:2px}.heatmap div{font-size:9px;padding:7px 1px}}
 </style>
 <link rel="stylesheet" href="/v2.css"><link rel="stylesheet" href="/v3.css"><link rel="stylesheet" href="/match-stats.css">
+<style>
+#plViewerBanner{display:none;background:#15394b;border:1px solid #39778b;border-radius:12px;padding:13px 16px;margin:14px 0;color:#deefff;font-size:13px;line-height:1.65}
+body.pl-viewer-mode #plViewerBanner{display:block}
+body.pl-viewer-mode [data-tab="desk"],body.pl-viewer-mode [data-tab="odds"],body.pl-viewer-mode [data-tab="journal"],
+body.pl-viewer-mode [data-goto="desk"],body.pl-viewer-mode [data-goto="odds"],body.pl-viewer-mode [data-goto="journal"],
+body.pl-viewer-mode #shareViewerPanel,
+body.pl-viewer-mode #manualFixtureAdd,
+body.pl-viewer-mode #saveJournal,
+body.pl-viewer-mode #clearData,
+body.pl-viewer-mode #backupUpload,
+body.pl-viewer-mode #csvInput,
+body.pl-viewer-mode #syncHistory,
+body.pl-viewer-mode #addOdds,
+body.pl-viewer-mode #clearManualOdds,
+body.pl-viewer-mode #refreshOdds,
+body.pl-viewer-mode #fdImportFiles,
+body.pl-viewer-mode #fdImportButton,
+body.pl-viewer-mode #fdClearExtra{display:none!important}
+body.pl-viewer-mode #data .filebox{opacity:.55;pointer-events:none}
+</style>
+<script>window.PLLabViewerMode=(new URLSearchParams(window.location.search)).get('viewer')==='1';if(window.PLLabViewerMode)document.documentElement.classList.add('pl-viewer-pending');</script>
 </head>
 <body>
 <div class="shell">
   <div class="top"><div class="brand"><span class="ball">⚽</span><span>Premier League <span style="color:#64d8b4">Probability Lab</span></span></div><span class="pill">RESEARCH ONLY · NO BETTING</span></div>
   <h1>Understand the numbers.<br><span style="color:#6ddabe">Question the probabilities.</span></h1>
+  <div id="plViewerBanner" role="status"><strong>Viewer mode · read-only</strong><div>Explore football statistics, team comparisons, models and hypothetical scenarios. You cannot save forecasts, import personal records, delete data, or change the competition. Historical-season imports are temporary for this visit only.</div></div>
   <p class="lede">Independent football analytics: learn from actual results, generate transparent probability estimates, and compare them with bookmaker-implied percentages. This platform cannot place bets.</p>
   <div class="nav" role="tablist">
     <button class="active" data-tab="overview">Overview</button><button data-tab="desk">Fixture Desk</button><button data-tab="intel">Match Insights</button><button data-tab="scenario">Scenario Studio</button><button data-tab="clubs">Club Explorer</button><button data-tab="advanced">Match Statistics</button><button data-tab="match">Match Lab</button><button data-tab="odds">Odds Comparison</button><button data-tab="audit">Model Audit</button><button data-tab="journal">Forecast Journal</button><button data-tab="data">Data & Methods</button>
@@ -32,6 +54,7 @@ button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1220px;m
       <div class="panel"><h2>Research readiness</h2><div class="statrow"><span>Loaded match history</span><b id="historyState" class="warn">Not loaded</b></div><div class="statrow"><span>Bookmaker odds feed</span><b id="oddsState" class="warn">Not connected</b></div><div class="statrow"><span>Fixtures feed</span><b id="fixtureState" class="warn">Sample fixtures</b></div><div class="notice">Numbers derived from sample or manually entered odds are marked clearly. Our model does not claim to predict certain winners or guarantee returns.</div><button class="btn" data-goto="data">Load football data</button></div>
     </div>
     <div class="panel"><h2>Season-by-season statistics</h2><p class="hint">Actual outcomes across your imported match history, with partial-season caveats and sample intervals.</p><div id="seasonTrendTable"></div></div>
+    <div class="panel" id="shareViewerPanel"><h2>Share read-only access</h2><p class="hint">Invite Deesh or another friend to explore football statistics without editing results, fixtures or app settings.</p><div class="actions"><button class="btn secondary" id="shareViewerLink">Copy read-only viewer link</button><span class="hint" id="shareViewerStatus">No login needed. This is a public link, not a private account permission.</span></div></div>
     <div class="panel"><h2>Live data from our Predictions app</h2><div class="actions"><button class="btn" id="syncPredictions">Refresh from Predictions</button><span id="sharedFeedState" class="badge warn">Checking connection…</span></div><p id="sharedFeedMessage" class="hint">Secure read-only connection: football matches, scores and kick-off times only. No players’ predictions or accounts are shared.</p><div class="v3-buttonline"><span id="sharedHistoryCount" class="v3-tag">Historical results: —</span><span id="sharedCurrentCount" class="v3-tag">Current results: —</span><span id="sharedUpcomingCount" class="v3-tag">Upcoming fixtures: —</span></div></div>
     <div class="panel"><h2>New: shots, corners and half-time comparisons</h2><p class="hint">Our Match Statistics Studio analyses the football results already loaded. More detailed stats can be added when we have a suitable permitted source.</p><button class="btn secondary" data-goto="advanced">Explore match statistics</button></div>
     <div class="panel"><h2>Want more than two seasons?</h2><p class="hint">Our history archive provides up to 15 earlier Premier League seasons at no extra cost, with one-tap import.</p><button class="btn secondary" data-open-archive="true">Open historical season importer</button></div>
@@ -172,6 +195,8 @@ button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1220px;m
 <script>
 (function(){
 'use strict';
+function plSafeSet(k,v){if(!window.PLLabViewerMode)localStorage.setItem(k,v)}
+function plSafeRemove(k){if(!window.PLLabViewerMode)localStorage.removeItem(k)}
 var data=[], apiFixtures=[], sharedFixtures=[], apiOdds=[], manualOdds=[], manualFixtures=[], selectedHome='Arsenal',selectedAway='Manchester City',currentFixture='Arsenal|Manchester City',activeTab='overview',mode='historical';
 var starterFixtures=[]; // No fabricated matches shown as upcoming fixtures.
 var knownTeams=['Arsenal','Aston Villa','Bournemouth','Brentford','Brighton','Chelsea','Coventry City','Crystal Palace','Everton','Fulham','Hull City','Ipswich Town','Leeds United','Liverpool','Manchester City','Manchester United','Newcastle United','Nottingham Forest','Sunderland','Tottenham Hotspur'];
@@ -181,7 +206,7 @@ function display(v){var k=norm(v);return knownTeams.find(function(x){return norm
 function el(id){return document.getElementById(id)}
 function pct(v){return (100*v).toFixed(1)+'%'}
 function setText(id,v){el(id).textContent=v}
-function navigate(tab){activeTab=tab;try{localStorage.setItem("pllab_last_tab_v1",tab)}catch(e){}document.querySelectorAll('.content').forEach(function(x){x.classList.toggle('active',x.id===tab)});document.querySelectorAll('[data-tab]').forEach(function(x){x.classList.toggle('active',x.dataset.tab===tab)});window.scrollTo({top:0,behavior:'smooth'})}
+function navigate(tab){if(window.PLLabViewerMode&&["desk","odds","journal"].indexOf(tab)>=0)tab="overview";activeTab=tab;try{if(!window.PLLabViewerMode)plSafeSet("pllab_last_tab_v1",tab)}catch(e){}document.querySelectorAll('.content').forEach(function(x){x.classList.toggle('active',x.id===tab)});document.querySelectorAll('[data-tab]').forEach(function(x){x.classList.toggle('active',x.dataset.tab===tab)});window.scrollTo({top:0,behavior:'smooth'})}
 document.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){navigate(b.dataset.tab)}});document.querySelectorAll('[data-goto]').forEach(function(b){b.onclick=function(){navigate(b.dataset.goto)}});
 function csvRows(raw){var out=[],row=[],value='',quoted=false;raw=raw.replace(/^\ufeff/,'');for(var i=0;i<raw.length;i++){var c=raw[i];if(c==='"'){if(quoted&&raw[i+1]==='"'){value+='"';i++}else quoted=!quoted}else if(c===','&&!quoted){row.push(value);value=''}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&raw[i+1]==='\n')i++;row.push(value);value='';if(row.some(function(x){return x.trim()}))out.push(row);row=[]}else value+=c}row.push(value);if(row.some(function(x){return x.trim()}))out.push(row);return out}
 function dateVal(v){v=String(v||'').trim();if(!v)return '';if(/^\d{4}-\d\d-\d\d/.test(v))return v.slice(0,10);var m=v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);if(m){var y=+m[3];if(y<100)y+=y>50?1900:2000;return y+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2)}return ''}
@@ -189,7 +214,7 @@ function importCSV(s){var rows=csvRows(s);if(rows.length<2)throw Error('CSV need
 var hi=idx('hometeam','home','home_team'),ai=idx('awayteam','away','away_team'),gi=idx('fthg','homegoals','home_goals'),fi=idx('ftag','awaygoals','away_goals'),di=idx('date','matchdate'),dv=idx('div','division');if([hi,ai,gi,fi].some(function(x){return x<0}))throw Error('Required headings: HomeTeam, AwayTeam, FTHG, FTAG.');
 var cleaned=rows.slice(1).map(function(r,i){if(dv>=0&&r[dv]&&['E0','PL','EPL','PREMIER LEAGUE'].indexOf(r[dv].trim().toUpperCase())<0)return null;var hg=Number(r[gi]),ag=Number(r[fi]);if(!r[hi]||!r[ai]||r[gi]===''||r[fi]===''||!Number.isInteger(hg)||!Number.isInteger(ag)||hg<0||ag<0||hg>20||ag>20)return null;return{home:display(r[hi]),away:display(r[ai]),hg:hg,ag:ag,date:di>=0?dateVal(r[di]):'',order:i}}).filter(Boolean);
 if(!cleaned.length)throw Error('No completed scorelines found.');cleaned.sort(function(a,b){return a.date&&b.date?a.date.localeCompare(b.date):a.order-b.order});
-data=cleaned.slice(-7600);try{localStorage.setItem('pllab_history_v1',JSON.stringify(data))}catch(e){setText('importFeedback','Imported for this session. Browser storage is full, so it may not survive closing this tab.')}updateAll();setText('importFeedback','Imported '+data.length+' completed matches. Your results stay on this device. Repeated imports replace the previous dataset.')}
+if(window.PLLabViewerMode)return;data=cleaned.slice(-7600);try{plSafeSet('pllab_history_v1',JSON.stringify(data))}catch(e){setText('importFeedback','Imported for this session. Browser storage is full, so it may not survive closing this tab.')}updateAll();setText('importFeedback','Imported '+data.length+' completed matches. Your results stay on this device. Repeated imports replace the previous dataset.')}
 function allTeams(){var names=knownTeams.concat(data.map(function(r){return r.home}),data.map(function(r){return r.away}),apiFixtures.map(function(r){return r.home}),apiFixtures.map(function(r){return r.away}));var seen={};return names.filter(function(t){var k=norm(t);if(!k||seen[k])return false;seen[k]=true;return true}).sort()}
 function selectOptions(){var teams=allTeams();['homeTeam','awayTeam'].forEach(function(id){var chosen=id==='homeTeam'?selectedHome:selectedAway;el(id).innerHTML=teams.map(function(t){return '<option value="'+esc(t)+'"'+(norm(t)===norm(chosen)?' selected':'')+'>'+esc(t)+'</option>'}).join('')})}
 function esc(v){return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
@@ -199,8 +224,8 @@ var all=manualFixtures.concat(source).filter(function(f){return f&&f.home&&f.awa
 var seen={};
 return all.filter(function(f){var k=norm(f.home)+'|'+norm(f.away)+'|'+f.date.slice(0,16);if(seen[k])return false;seen[k]=true;return true}).sort(function(a,b){return Date.parse(a.date)-Date.parse(b.date)});
 }
-function saveFixtures(){try{localStorage.setItem('pllab_manual_fixtures_v3',JSON.stringify(manualFixtures))}catch(e){}}
-function addManualFixture(home,away,date){
+function saveFixtures(){if(window.PLLabViewerMode)return;try{plSafeSet('pllab_manual_fixtures_v3',JSON.stringify(manualFixtures))}catch(e){}}
+function addManualFixture(home,away,date){if(window.PLLabViewerMode)return {ok:false,error:'Viewer mode: editing fixtures is unavailable.'};
 home=display(home);away=display(away);
 var ts=Date.parse(date),teams=allTeams();
 if(!home||!away||norm(home)===norm(away))return {ok:false,error:'Choose two different clubs.'};
@@ -211,8 +236,8 @@ if(manualFixtures.some(function(m){return norm(m.home)===norm(home)&&norm(m.away
 manualFixtures.push(f);manualFixtures=manualFixtures.slice(-150);saveFixtures();updateAll();
 return{ok:true,fixture:f}
 }
-function deleteManualFixture(home,away,date){manualFixtures=manualFixtures.filter(function(f){return !(norm(f.home)===norm(home)&&norm(f.away)===norm(away)&&f.date===date)});saveFixtures();updateAll()}
-function saveManualOdds(){try{localStorage.setItem('pllab_manual_odds_v3',JSON.stringify(manualOdds))}catch(e){}}
+function deleteManualFixture(home,away,date){if(window.PLLabViewerMode)return;manualFixtures=manualFixtures.filter(function(f){return !(norm(f.home)===norm(home)&&norm(f.away)===norm(away)&&f.date===date)});saveFixtures();updateAll()}
+function saveManualOdds(){if(window.PLLabViewerMode)return;try{plSafeSet('pllab_manual_odds_v3',JSON.stringify(manualOdds))}catch(e){}}
 
 function renderFixtures(){var arr=fixtureList();el('fixturePills').innerHTML=(arr.length?arr.slice(0,9).map(function(f){return '<button class="btn secondary" data-h="'+esc(f.home)+'" data-a="'+esc(f.away)+'">'+esc(f.home)+' – '+esc(f.away)+'</button>'}).join(''):'<div class="v3-cta">No upcoming fixture feed loaded. Press Refresh from Predictions, or use Fixture Desk.</div>');el('fixturePills').querySelectorAll('button').forEach(function(b){b.onclick=function(){selectedHome=b.dataset.h;selectedAway=b.dataset.a;selectOptions();renderModel();navigate('match')}});el('oddsFixture').innerHTML=arr.map(function(f){var key=f.home+'|'+f.away;return '<option value="'+esc(key)+'"'+(key===currentFixture?' selected':'')+'>'+esc(f.home)+' v '+esc(f.away)+'</option>'}).join('');if(arr.length&&!arr.some(function(f){return f.home+'|'+f.away===currentFixture}))currentFixture=arr[0].home+'|'+arr[0].away;if(!arr.length)currentFixture='';el('oddsFixture').value=currentFixture}
 function outcomes(games){var h=0,d=0,a=0,g=0;games.forEach(function(x){g+=x.hg+x.ag;if(x.hg>x.ag)h++;else if(x.hg===x.ag)d++;else a++});return{h:h,d:d,a:a,goals:g}}
@@ -245,11 +270,11 @@ el('oddsRows').innerHTML=rows.length?rows.map(function(r){var q=oddsCalc(r);retu
 var model=currentModel();if(!rows.length){setText('gapAnalysis','No odds comparisons available for this fixture.');return}if(!model||mode==='sandbox'){setText('gapAnalysis','Quoted odds converted to bookmaker-implied probabilities. A historical model with enough data is required before comparing observed quotes to a data-driven estimate; sandbox percentages are deliberately excluded.');return}
 var p=model.model,lines=rows.map(function(r){var q=oddsCalc(r);var differences=[p.home-q.v[0],p.draw-q.v[1],p.away-q.v[2]];return esc(r.provider)+': model minus normalized market percentage (home '+(differences[0]*100).toFixed(1)+' pp, draw '+(differences[1]*100).toFixed(1)+' pp, away '+(differences[2]*100).toFixed(1)+' pp).'});el('gapAnalysis').innerHTML='<b>Model–market differences (percentage points):</b><br>'+lines.join('<br>')+'<br><span class="fine">A positive gap means this imperfect model assigns a higher probability than the quoted market. This is not proof that a price is favourable or a recommendation to gamble.</span>'}
 var updateObservers=[];function updateAll(){updateOverview();selectOptions();renderFixtures();renderModel();updateObservers.forEach(function(fn){try{fn()}catch(e){console.warn('Analysis view refresh failed',e)}})}
-function fixtureImport(){fetch('/api/fixtures').then(function(r){return r.json().then(function(b){if(!r.ok)throw Error(b.error||'Unavailable');return b})}).then(function(j){apiFixtures=(j.matches||[]).filter(function(m){return m.homeTeam&&m.awayTeam}).slice(0,20).map(function(m){return{home:display(m.homeTeam.name||m.homeTeam.shortName),away:display(m.awayTeam.name||m.awayTeam.shortName),date:m.utcDate}});if(!apiFixtures.length)throw Error('No scheduled fixtures returned');setText('fixtureState','Live fixture feed');el('fixtureState').className='good';setText('fixturesMessage',apiFixtures.length+' upcoming fixtures loaded from football-data.org.');setText('fixtureNotice','Scheduled matches via football-data.org; check the feed timestamp for late changes.');renderFixtures();selectOptions();if(window.PLLabV2)window.PLLabV2.refresh()}).catch(function(e){setText('fixturesMessage','Fixtures API not ready: '+e.message+'. Reference schedule remains available.')})}
+function fixtureImport(){if(window.PLLabViewerMode)return;fetch('/api/fixtures').then(function(r){return r.json().then(function(b){if(!r.ok)throw Error(b.error||'Unavailable');return b})}).then(function(j){apiFixtures=(j.matches||[]).filter(function(m){return m.homeTeam&&m.awayTeam}).slice(0,20).map(function(m){return{home:display(m.homeTeam.name||m.homeTeam.shortName),away:display(m.awayTeam.name||m.awayTeam.shortName),date:m.utcDate}});if(!apiFixtures.length)throw Error('No scheduled fixtures returned');setText('fixtureState','Live fixture feed');el('fixtureState').className='good';setText('fixturesMessage',apiFixtures.length+' upcoming fixtures loaded from football-data.org.');setText('fixtureNotice','Scheduled matches via football-data.org; check the feed timestamp for late changes.');renderFixtures();selectOptions();if(window.PLLabV2)window.PLLabV2.refresh()}).catch(function(e){setText('fixturesMessage','Fixtures API not ready: '+e.message+'. Reference schedule remains available.')})}
 el('csvInput').onchange=function(e){var f=e.target.files&&e.target.files[0];if(!f)return;var reader=new FileReader();reader.onload=function(){try{importCSV(String(reader.result))}catch(err){setText('importFeedback','Could not import: '+err.message)}};reader.readAsText(f)};
-function syncHistory(){setText('importFeedback','Checking completed Premier League results feed…');fetch('/api/history?seasons='+encodeURIComponent((function(){var now=new Date(),yr=now.getUTCFullYear()-(now.getUTCMonth()<6?1:0),depth=Number(el('historyDepth').value)||2;return Array.from({length:depth},function(_,i){return yr-i}).join(',')})())).then(function(r){return r.json().then(function(j){if(!r.ok)throw Error(j.error||'Results unavailable');return j})}).then(function(j){var m=(j.matches||[]).map(function(r,i){return{date:r.date||'',home:display(r.home),away:display(r.away),hg:Number(r.hg),ag:Number(r.ag),order:i}}).filter(function(r){return r.home&&r.away&&Number.isInteger(r.hg)&&Number.isInteger(r.ag)});if(!m.length)throw Error('No completed matches in feed');m.sort(function(a,b){return a.date.localeCompare(b.date)});if(j.partial&&data.length>m.length){setText('importFeedback','Selected seasons were only partially available. Kept '+data.length+' existing results rather than replacing them with a smaller partial import. '+(j.messages||[]).join('; '));return}data=m;try{localStorage.setItem('pllab_history_v1',JSON.stringify(data))}catch(e){}setText('importFeedback','Synchronized '+m.length+' completed Premier League matches from football-data.org at '+new Date(j.fetchedAt).toLocaleString('en-GB',{timeZone:'Europe/London'})+'. Data saved in this browser. '+(j.partial?'WARNING: not all requested seasons were available. ':'')+(j.messages||[]).join('; '));updateAll()}).catch(function(e){setText('importFeedback','Automatic sync unavailable: '+e.message+' You can still import a CSV.')})}
+function syncHistory(){if(window.PLLabViewerMode)return;setText('importFeedback','Checking completed Premier League results feed…');fetch('/api/history?seasons='+encodeURIComponent((function(){var now=new Date(),yr=now.getUTCFullYear()-(now.getUTCMonth()<6?1:0),depth=Number(el('historyDepth').value)||2;return Array.from({length:depth},function(_,i){return yr-i}).join(',')})())).then(function(r){return r.json().then(function(j){if(!r.ok)throw Error(j.error||'Results unavailable');return j})}).then(function(j){var m=(j.matches||[]).map(function(r,i){return{date:r.date||'',home:display(r.home),away:display(r.away),hg:Number(r.hg),ag:Number(r.ag),order:i}}).filter(function(r){return r.home&&r.away&&Number.isInteger(r.hg)&&Number.isInteger(r.ag)});if(!m.length)throw Error('No completed matches in feed');m.sort(function(a,b){return a.date.localeCompare(b.date)});if(j.partial&&data.length>m.length){setText('importFeedback','Selected seasons were only partially available. Kept '+data.length+' existing results rather than replacing them with a smaller partial import. '+(j.messages||[]).join('; '));return}data=m;try{plSafeSet('pllab_history_v1',JSON.stringify(data))}catch(e){}setText('importFeedback','Synchronized '+m.length+' completed Premier League matches from football-data.org at '+new Date(j.fetchedAt).toLocaleString('en-GB',{timeZone:'Europe/London'})+'. Data saved in this browser. '+(j.partial?'WARNING: not all requested seasons were available. ':'')+(j.messages||[]).join('; '));updateAll()}).catch(function(e){setText('importFeedback','Automatic sync unavailable: '+e.message+' You can still import a CSV.')})}
 el('syncHistory').onclick=syncHistory;
-el('clearData').onclick=function(){data=[];localStorage.removeItem('pllab_history_v1');setText('importFeedback','Saved match history cleared.');updateAll()};
+el('clearData').onclick=function(){if(window.PLLabViewerMode)return;data=[];plSafeRemove('pllab_history_v1');setText('importFeedback','Saved match history cleared.');updateAll()};
 el('downloadTemplate').onclick=function(){var blob=new Blob(['Date,HomeTeam,AwayTeam,FTHG,FTAG\n'],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='premier-league-results-template.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},500)};
 el('homeTeam').onchange=function(e){selectedHome=e.target.value;renderModel()};el('awayTeam').onchange=function(e){selectedAway=e.target.value;renderModel()};document.querySelectorAll('[name=modelMode]').forEach(function(b){b.onchange=function(){if(b.checked){mode=b.value;renderModel()}}});['homeXg','awayXg'].forEach(function(id){el(id).oninput=renderModel});
 el('oddsFixture').onchange=function(e){currentFixture=e.target.value;selectedHome=currentFixture.split('|')[0];selectedAway=currentFixture.split('|')[1];renderModel()};
@@ -279,7 +304,7 @@ function mergeArchiveResults(older){
  // Shared Predictions records and previously supplied results win on overlap.
  data=mergeSharedMatches(accepted,data);
  var saved=false;
- try{localStorage.setItem('pllab_history_v1',JSON.stringify(data));saved=true}catch(e){}
+ try{plSafeSet('pllab_history_v1',JSON.stringify(data));saved=!window.PLLabViewerMode}catch(e){}
  updateAll();
  return{before:before,total:data.length,added:data.length-before,saved:saved};
 }
@@ -308,7 +333,7 @@ function syncFromPredictions(){
    sharedFixtures=fresh;
    var before=data.length;
    data=mergeSharedMatches(data,prepared);
-   try{localStorage.setItem('pllab_history_v1',JSON.stringify(data))}catch(e){setText('importFeedback','Results are available for this session, but browser storage could not save them. Export a backup.')}
+   try{plSafeSet('pllab_history_v1',JSON.stringify(data))}catch(e){setText('importFeedback','Results are available for this session, but browser storage could not save them. Export a backup.')}
    var when=new Date(j.generatedAt||Date.now()).toLocaleString('en-GB',{timeZone:'Europe/London',dateStyle:'short',timeStyle:'short'});
    var label='Connected · '+prepared.length+' completed results';
    setText('sharedFeedState','Connected');el('sharedFeedState').className='badge good';
@@ -347,11 +372,11 @@ try{var old=JSON.parse(localStorage.getItem('pllab_history_v1')||'[]');if(Array.
 updateAll();
 try{
   var savedTab=localStorage.getItem('pllab_last_tab_v1');
-  if(savedTab&&document.getElementById(savedTab)&&document.querySelector('[data-tab="'+savedTab+'"]'))navigate(savedTab);
+  if(!window.PLLabViewerMode&&savedTab&&document.getElementById(savedTab)&&document.querySelector('[data-tab="'+savedTab+'"]'))navigate(savedTab);
 }catch(e){}
 syncFromPredictions();
 fetch('/api/config').then(function(r){if(!r.ok)throw Error('Configuration status unavailable');return r.json()}).then(function(config){
-  if(config.footballDataConfigured){
+  if(config.footballDataConfigured&&!window.PLLabViewerMode){
     setText('fixtureState','Football feed available');el('fixtureState').className='good';
     fixtureImport();if(!data.length)syncHistory();
   }else{
@@ -365,4 +390,4 @@ fetch('/api/config').then(function(r){if(!r.ok)throw Error('Configuration status
 }).catch(function(){setText('fixturesMessage','Offline features remain available. Live API readiness could not be checked.');});
 
 })();
-</script><script src="/v2.js"></script><script src="/v3.js"></script><script src="/history-import.js"></script><script src="/match-stats.js"></script></body></html>
+</script><script src="/v2.js"></script><script src="/v3.js"></script><script src="/history-import.js"></script><script src="/match-stats.js"></script><script src="/viewer.js"></script></body></html>
