@@ -33,6 +33,7 @@ button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1220px;m
     </div>
     <div class="panel"><h2>Season-by-season statistics</h2><p class="hint">Actual outcomes across your imported match history, with partial-season caveats and sample intervals.</p><div id="seasonTrendTable"></div></div>
     <div class="panel"><h2>Live data from our Predictions app</h2><div class="actions"><button class="btn" id="syncPredictions">Refresh from Predictions</button><span id="sharedFeedState" class="badge warn">Checking connection…</span></div><p id="sharedFeedMessage" class="hint">Secure read-only connection: football matches, scores and kick-off times only. No players’ predictions or accounts are shared.</p><div class="v3-buttonline"><span id="sharedHistoryCount" class="v3-tag">Historical results: —</span><span id="sharedCurrentCount" class="v3-tag">Current results: —</span><span id="sharedUpcomingCount" class="v3-tag">Upcoming fixtures: —</span></div></div>
+    <div class="panel"><h2>Want more than two seasons?</h2><p class="hint">Our history archive provides up to 15 earlier Premier League seasons at no extra cost, with one-tap import.</p><button class="btn secondary" data-open-archive="true">Open historical season importer</button></div>
     <div class="panel"><h2>Start researching — no API key needed</h2><div id="gettingStarted"></div></div>
     <div class="panel"><h2>Upcoming match workspace</h2><div id="fixturePills" class="split"></div><p class="hint" id="fixtureNotice">Fixtures are taken from the Predictions database or your manually entered list. Times can change; verify them with the club or league.</p><button class="btn secondary" data-goto="match">Open Match Lab</button></div>
   </section>
@@ -110,6 +111,14 @@ button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1220px;m
     <div class="panel"><h2>Prediction history</h2><div id="journalEntries" class="v2-journal"></div></div>
   </section>
   <section class="content" id="data">
+    <div class="panel" id="archiveHistoryPanel">
+      <div class="v3-feature-note"><strong>Historical Premier League seasons · No API key needed</strong><p>Import earlier seasons into your research app in one go. All 15 years (2010/11–2024/25) contain 380 scored matches per season. Source: OpenFootball, CC0 public-domain dataset.</p></div>
+      <div class="fields"><div class="field"><label for="historyArchiveRange">How much history would you like?</label><select id="historyArchiveRange"><option value="5">5 previous seasons · 2020/21–2024/25 · 1,900 matches</option><option value="10" selected>10 previous seasons · 2015/16–2024/25 · 3,800 matches</option><option value="15">15 previous seasons · 2010/11–2024/25 · 5,700 matches</option></select></div></div>
+      <div class="actions"><button class="btn" id="loadArchiveHistory">Import selected historical seasons</button></div>
+      <p class="hint" id="historyArchiveStatus">Each season is imported only once per fixture/date. Importing again is safe. Results are stored in this browser and are available for club comparisons, season trends and backtesting.</p>
+      <p class="hint" id="historyArchiveSummary">Checking saved match history…</p>
+      <p class="fine">These are historical datasets, not an independent verification of the current season. Current matches and fixtures continue coming from our separate Predictions database. <a href="https://github.com/openfootball/football.json" target="_blank" rel="noopener noreferrer">View the historical data source</a>.</p>
+    </div>
     <div class="panel"><h2>Automatic Predictions database connection</h2><p class="hint">Refresh real Premier League results and upcoming fixtures directly from the existing competition. The connection adds no API subscription and is read-only.</p><button class="btn" id="syncPredictionsData">Refresh from Predictions database</button><p class="hint" id="sharedFeedStatusData">Connection checked when the page opens.</p></div>
     <div class="grid2">
       <div class="panel"><h2>Import match results</h2><div class="filebox"><div><b>CSV format</b></div><p class="hint">A file containing HomeTeam, AwayTeam, FTHG and FTAG columns. Include Date for chronological testing. Optional Div column (E0 or PL only when supplied). Files are processed locally on your device.</p><input type="file" id="csvInput" accept=".csv,text/csv"><div class="field" style="max-width:260px;margin-bottom:12px"><label for="historyDepth">Historical seasons to sync</label><select id="historyDepth"><option value="1">Current season</option><option value="2" selected>Current + previous season</option><option value="3">Current + two previous seasons</option></select></div><div class="actions"><button id="syncHistory" class="btn">Sync completed results</button><button id="downloadTemplate" class="btn secondary">Get blank CSV template</button><button id="clearData" class="btn secondary">Clear saved history</button></div></div><div id="importFeedback" class="notice">Your imported results persist in this browser on this device; they are not uploaded to a server.</div></div>
@@ -227,7 +236,7 @@ function mergeSharedMatches(oldRows,newRows){
 function mergeArchiveResults(older){
  if(!Array.isArray(older)||!older.length)throw Error('No historical matches supplied.');
  var accepted=older.map(function(r,i){
-   return {date:String(r.date||''),home:display(r.home),away:display(r.away),hg:r.hg,ag:r.ag,order:i,source:r.source||'OpenFootball CC0'}
+   return {date:String(r.date||''),home:display(r.home),away:display(r.away),hg:r.hg,ag:r.ag,order:i,season:r.season||'',source:r.source||'OpenFootball CC0'}
  }).filter(function(r){
    return /^\d{4}-\d{2}-\d{2}$/.test(r.date)&&r.home&&r.away&&norm(r.home)!==norm(r.away)&&Number.isInteger(r.hg)&&Number.isInteger(r.ag)&&r.hg>=0&&r.ag>=0&&r.hg<=30&&r.ag<=30
  });
@@ -252,7 +261,7 @@ function syncFromPredictions(){
    return r.json().then(function(j){if(!r.ok)throw Error(j.error||'Predictions feed unavailable');return j})
  }).then(function(j){
    var accepted=(j.completedMatches||[]).map(function(r,i){
-     return {date:r.date,home:display(r.home),away:display(r.away),hg:r.hg,ag:r.ag,order:i,source:r.source||'Predictions database'}
+     return {date:r.date,home:display(r.home),away:display(r.away),hg:r.hg,ag:r.ag,order:i,season:r.season||'',source:r.source||'Predictions database'}
    }).filter(function(r){
      return /^\d{4}-\d{2}-\d{2}$/.test(String(r.date||''))&&r.home&&r.away&&Number.isInteger(r.hg)&&Number.isInteger(r.ag)&&r.hg>=0&&r.ag>=0&&r.hg<=30&&r.ag<=30
    });
@@ -317,4 +326,4 @@ fetch('/api/config').then(function(r){if(!r.ok)throw Error('Configuration status
 }).catch(function(){setText('fixturesMessage','Offline features remain available. Live API readiness could not be checked.');});
 
 })();
-</script><script src="/v2.js"></script><script src="/v3.js"></script></body></html>
+</script><script src="/v2.js"></script><script src="/v3.js"></script><script src="/history-import.js"></script></body></html>
