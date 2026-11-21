@@ -163,9 +163,13 @@ function renderOddsLens(){
  $('oddsResearch').innerHTML=h;
 }
 function refresh(){
- renderClub();renderJournal();renderOddsLens();
- // Audit can be compute-heavy over many seasons. Run when requested.
- if(document.getElementById('audit')?.classList.contains('active'))renderCalibration();
+ // Keep large history datasets light: offscreen panels are rendered only
+ // when the corresponding tab is opened (or its controls are used).
+ const active=document.querySelector('.content.active')?.id||'overview';
+ if(active==='clubs')renderClub();
+ else if(active==='journal')renderJournal();
+ else if(active==='odds')renderOddsLens();
+ // Model calibration is intentionally deferred to the Audit tab.
 }
 $('clubPicker').addEventListener('change',e=>{currentClub=e.target.value;renderClub()});
 ['clubSide','clubRange'].forEach(id=>$(id).addEventListener('change',renderClub));
