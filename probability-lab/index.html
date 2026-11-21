@@ -31,7 +31,7 @@ body.pl-viewer-mode #fdImportButton,
 body.pl-viewer-mode #fdClearExtra{display:none!important}
 body.pl-viewer-mode #data .filebox{opacity:.55;pointer-events:none}
 </style>
-<script>window.PLLabViewerMode=(new URLSearchParams(window.location.search)).get('viewer')==='1';if(window.PLLabViewerMode)document.documentElement.classList.add('pl-viewer-pending');</script>
+<script>window.PLLabViewerMode=/(?:\?|&)viewer=1(?:&|$)/.test(window.location.search||'');if(window.PLLabViewerMode)document.documentElement.classList.add('pl-viewer-pending');</script>
 </head>
 <body>
 <div class="shell">
