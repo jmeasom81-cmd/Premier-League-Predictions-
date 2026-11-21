@@ -240,12 +240,14 @@ function renderSeasons(){
 }
 
 function refresh(){
- renderQuality();
- renderSeasons();
- renderGuide();
- renderFixtureDesk();
- renderIntel();
- renderScenario();
+ // Mobile stability: do not calculate and render every research panel
+ // when only one tab is visible (especially with 4,000–6,000 matches).
+ const active=document.querySelector('.content.active')?.id||'overview';
+ if(active==='overview'){renderSeasons();renderGuide()}
+ else if(active==='data')renderQuality();
+ else if(active==='desk')renderFixtureDesk();
+ else if(active==='intel')renderIntel();
+ else if(active==='scenario')renderScenario();
 }
 function onTab(id,callback){const b=document.querySelector('[data-tab="'+id+'"]');if(b)b.addEventListener('click',callback)}
 function start(){
@@ -259,7 +261,7 @@ function start(){
  get('backupDownload').addEventListener('click',makeBackup);
  get('resultsExport').addEventListener('click',exportResults);
  get('backupUpload').addEventListener('change',e=>restoreBackup(e.target.files?.[0]));
- onTab('desk',renderFixtureDesk);onTab('intel',renderIntel);onTab('scenario',renderScenario);onTab('data',renderQuality);
+ onTab('overview',()=>{renderSeasons();renderGuide()});onTab('desk',renderFixtureDesk);onTab('intel',renderIntel);onTab('scenario',renderScenario);onTab('data',renderQuality);
  get('addOdds')?.addEventListener('click',()=>window.PLLabV2?.renderOddsLens());
  get('clearManualOdds')?.addEventListener('click',()=>window.PLLabV2?.renderOddsLens());
  core.onUpdate(refresh);
