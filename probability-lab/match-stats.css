@@ -1,0 +1,23 @@
+/* Match Statistics Studio: responsive data summaries and provider imports. */
+.fd-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px}
+.fd-summary .card{padding:16px}
+.fd-summary .value{font-size:26px;word-break:break-word}
+.fd-linkfield{justify-content:flex-end}
+.fd-official-link{display:flex;justify-content:center;align-items:center;text-align:center;text-decoration:none;min-height:46px;white-space:normal}
+.fd-message{border:1px solid #35546d;border-radius:12px;background:#182f41;color:#c8d9e8;padding:12px 14px;margin-top:14px;font-size:12px;line-height:1.6}
+.fd-message.good{color:#87edc7;border-color:#368b76}
+.fd-message.bad{color:#ffd18d;border-color:#9e6641}
+.fd-coverage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px}
+.fd-cover{border-bottom:1px solid #304456;padding:8px 0}
+.fd-cover .minirow{font-size:12px;gap:8px}
+.fd-cover .progress{height:6px;margin:8px 0}
+#fdComparison th,#fdRecentGames th{white-space:normal}
+#fdComparison table{min-width:480px}
+#fdComparison td{white-space:normal}
+#fdComparison td .fine{white-space:nowrap}
+#fdRecentGames table{min-width:560px}
+#fdIntelExtras{margin-top:18px}
+#fdIntelExtras .panel{margin-bottom:15px}
+#fdStatsSourceDetails{line-height:1.7}
+@media(max-width:850px){.fd-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.fd-coverage{grid-template-columns:1fr}.fd-summary .card{padding:12px}.fd-summary .value{font-size:22px}.fd-summary{gap:8px}}
