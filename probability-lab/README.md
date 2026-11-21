@@ -45,3 +45,17 @@ Never interpret numerical model-versus-bookmaker differences as proven profitabl
 ### Verification
 
 The standalone app scripts were syntax-checked and exercised together using simulated populated/empty match histories. Expected outcomes from the core Poisson probability matrix were checked to sum to approximately 100%. This is not a full end-to-end browser or sportsbook integration test; validate provider subscriptions and rendering in production when keys are available.
+
+## Automatic Predictions database connection (v4)
+
+The app automatically loads football-only results and upcoming fixtures from /api/predictions-feed on startup. A Refresh from Predictions control is available in Overview and Data & Methods.
+
+The source is the existing Premier League Predictions Supabase database. The server returns completed Premier League records from historical_league_matches (excluding Championship), completed scored fixtures via the fixtures/results join, and future scheduled fixtures. This feed does not contain user accounts, player predictions, membership, emails, or IDs.
+
+Protection: Vercel stores a sensitive PLP_FEED_TOKEN environment variable. The independent Supabase Edge Function probability-lab-football-feed verifies the request token against a SHA-256 digest before performing strictly whitelisted read-only queries. The browser never receives credentials. Source tables and existing RLS policies are unchanged.
+
+Statistical caution: these football facts reflect what was recorded in our Predictions application, including some manually entered and third-party fallback scores; this is not independent official verification. Scheduled kick-offs can change. The Vercel proxy caches for around five minutes. The client merges incoming matches with stored history using normalized club names and date, prioritising source database corrections on conflicts.
+
+On failure, local imported history remains accessible. The historical dataset and upcoming fixtures can still be edited via existing CSV/Fixture Desk controls.
+
+Verification: source SQL counts show 380 Premier League historical results from 2025/26 and 106 completed 2026/27 results. Basic RLS status was rechecked. The newest Vercel release built READY and a simulated app startup loaded 486 matches, displayed connection status and saved data. Direct authenticated HTTP round-trip testing of the live Edge feed was not possible from the test environment, so verify the Connected badge in the deployed app.
