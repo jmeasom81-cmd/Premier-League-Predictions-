@@ -95,6 +95,33 @@ function updateDownload(){
  const link=$('fdDownloadLink');
  if(!url){link.removeAttribute('href');link.textContent='Select a season';return}
  link.href=url;link.textContent='Download '+value.replace('-','/')+' Premier League CSV';
+ // Highlight selection inside the page rather than invoking Android's
+ // system <select> picker, which was closing the embedded web browser.
+ document.querySelectorAll('[data-fd-season]').forEach(b=>{
+  const selected=b.dataset.fdSeason===value;
+  b.setAttribute('aria-pressed',String(selected));
+  b.classList.toggle('active',selected);
+ });
+}
+function buildSeasonButtons(){
+ const recent=$('fdSeasonButtonsRecent'),older=$('fdSeasonButtonsOlder');
+ if(!recent||!older)return;
+ for(let year=2025;year>=2010;year--){
+  const value=year+'-'+(year+1);
+  const label=year+'/'+String(year+1).slice(-2);
+  const b=document.createElement('button');
+  b.type='button';
+  b.className='fd-season-choice';
+  b.dataset.fdSeason=value;
+  b.textContent=label;
+  b.setAttribute('aria-pressed','false');
+  b.addEventListener('click',()=>{
+   $('fdSourceSeason').value=value;
+   updateDownload();
+  });
+  (year>=2020?recent:older).appendChild(b);
+ }
+ updateDownload();
 }
 function fmt(x,digits=1){return Number.isFinite(x)?x.toFixed(digits):'—'}
 function countCoverage(rows,field){return rows.filter(x=>x[field]!=null).length}
@@ -281,12 +308,12 @@ function clearRecords(){
  try{localStorage.removeItem(KEY);data=[];render();status('Extra match statistics cleared. Your existing goals and results history is unaffected.')}
  catch(_){status('Storage unavailable. Could not clear imported records.',true)}
 }
-$('fdSourceSeason').addEventListener('change',updateDownload);
+buildSeasonButtons();
 $('fdImportButton').addEventListener('click',chooseFiles);
 $('fdClearExtra').addEventListener('click',clearRecords);
 ['fdHomeClub','fdAwayClub','fdMatchWindow','fdHomeVenue','fdAwayVenue'].forEach(id=>$(id).addEventListener('change',renderCompare));
 ['matchIntelHome','matchIntelAway'].forEach(id=>$(id)?.addEventListener('change',renderIntel));
 core.onUpdate(renderIntel);
-updateDownload();render();
+render();
 window.PLLabMatchStats={getData:()=>data.slice(),parseFile,coverage:matchingRecords,render};
 })();
