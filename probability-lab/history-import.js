@@ -54,7 +54,7 @@ async function importYears(){
   const rows=result.flat();
   if(rows.length!==count)throw Error('One or more historical seasons were incomplete.');
   const after=core.mergeArchiveResults(rows);
-  state.textContent='Imported '+rows.length.toLocaleString('en-GB')+' verified-format archive records. '+after.added.toLocaleString('en-GB')+' were new to the current dataset; '+after.total.toLocaleString('en-GB')+' results now loaded. '+(after.saved?'Saved in this browser.':'Browser storage could not save all the data: export a backup before leaving.');
+  state.textContent='Imported '+rows.length.toLocaleString('en-GB')+' historical records. '+after.added.toLocaleString('en-GB')+' new, '+after.total.toLocaleString('en-GB')+' results now loaded. '+(window.PLLabViewerMode?'Viewer mode: this archive is temporary for your visit.':after.saved?'Saved in this browser.':'Browser storage is full; export a backup before leaving.');
   state.className='good';
   seasonCount();
  }catch(err){
