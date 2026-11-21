@@ -78,12 +78,23 @@ button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1220px;m
     <div class="panel" id="fdImportPanel">
       <h2>1. Download a season from Football-Data.co.uk</h2>
       <p class="hint">Choose a season and download its Premier League CSV directly from the original provider. Their published fair-usage policy is for personal research and limits automated collection, so this app does not scrape or republish their files. If ChatGPT closes the page when opening downloads, open this website directly in Chrome instead.</p>
-      <div class="fields"><div class="field"><label>Season to download</label>
-      <input id="fdSourceSeason" type="hidden" value="2025-2026">
-      <p class="hint">Tap a year below. This avoids opening the Android system dropdown.</p>
-      <div id="fdSeasonButtonsRecent" class="fd-season-buttons" role="group" aria-label="Recent Premier League seasons"></div>
-      <details id="fdOlderYears" class="fd-older-years"><summary>Older seasons · 2019/20 to 2010/11</summary><div id="fdSeasonButtonsOlder" class="fd-season-buttons" role="group" aria-label="Older Premier League seasons"></div></details></div><div class="field fd-linkfield"><label>Official download</label><a class="btn secondary fd-official-link" id="fdDownloadLink" target="_blank" rel="noopener noreferrer" href="https://www.football-data.co.uk/mmz4281/2526/E0.csv">Download 2025/26 Premier League CSV</a></div></div>
-      <p class="fine">Original provider: <a target="_blank" rel="noopener noreferrer" href="https://www.football-data.co.uk/englandm.php">Football-Data.co.uk season downloads</a>. Available columns differ between seasons. Downloads may open in a new tab depending on your device.</p>
+      <div class="fd-mobile-help" id="fdBrowserHelp">
+        <strong>Android / ChatGPT browser: use Chrome for CSV downloads.</strong>
+        <p>Opening the provider's CSV file inside ChatGPT can close this viewer. The safe route is to copy the links below, open <b>Chrome</b>, and paste the app address there. Do your download and import in Chrome. Your existing match results remain unchanged.</p>
+        <div class="actions"><button type="button" class="btn secondary" id="fdCopyAppLink">Copy Probability Lab address</button></div>
+        <p id="fdCopyAppStatus" class="hint" role="status"></p>
+      </div>
+      <div class="fields"><div class="field">
+        <label>Season to download</label>
+        <input id="fdSourceSeason" type="hidden" value="2025-2026">
+        <p class="hint">Select a year. Use the Copy CSV link button to get the official provider address without leaving the app.</p>
+        <div id="fdSeasonButtonsRecent" class="fd-season-buttons" role="group" aria-label="Recent Premier League seasons"></div>
+        <details id="fdOlderYears" class="fd-older-years"><summary>Older seasons · 2019/20 to 2010/11</summary><div id="fdSeasonButtonsOlder" class="fd-season-buttons" role="group" aria-label="Older Premier League seasons"></div></details>
+      </div></div>
+      <div class="actions"><button type="button" class="btn" id="fdCopyLink">Copy this season's CSV link</button></div>
+      <div class="field fd-url-field"><label for="fdCsvUrl">Official season file URL · can also be selected and copied manually</label><input id="fdCsvUrl" readonly type="text" value="https://www.football-data.co.uk/mmz4281/2526/E0.csv" aria-label="Official CSV file link"></div>
+      <p id="fdCopyStatus" class="fd-message" role="status">The link is copied without opening the provider's website inside ChatGPT. Open Chrome and paste it into the address bar to download.</p>
+      <p class="fine">Data source: Football-Data.co.uk. The provider's season files may vary in available columns. To view the provider's download page, paste https://www.football-data.co.uk/englandm.php directly into Chrome.</p>
     </div>
     <div class="panel">
       <h2>2. Import the downloaded CSV files</h2>
@@ -185,7 +196,7 @@ function display(v){var k=norm(v);return knownTeams.find(function(x){return norm
 function el(id){return document.getElementById(id)}
 function pct(v){return (100*v).toFixed(1)+'%'}
 function setText(id,v){el(id).textContent=v}
-function navigate(tab){activeTab=tab;document.querySelectorAll('.content').forEach(function(x){x.classList.toggle('active',x.id===tab)});document.querySelectorAll('[data-tab]').forEach(function(x){x.classList.toggle('active',x.dataset.tab===tab)});window.scrollTo({top:0,behavior:'smooth'})}
+function navigate(tab){activeTab=tab;try{localStorage.setItem("pllab_last_tab_v1",tab)}catch(e){}document.querySelectorAll('.content').forEach(function(x){x.classList.toggle('active',x.id===tab)});document.querySelectorAll('[data-tab]').forEach(function(x){x.classList.toggle('active',x.dataset.tab===tab)});window.scrollTo({top:0,behavior:'smooth'})}
 document.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){navigate(b.dataset.tab)}});document.querySelectorAll('[data-goto]').forEach(function(b){b.onclick=function(){navigate(b.dataset.goto)}});
 function csvRows(raw){var out=[],row=[],value='',quoted=false;raw=raw.replace(/^\ufeff/,'');for(var i=0;i<raw.length;i++){var c=raw[i];if(c==='"'){if(quoted&&raw[i+1]==='"'){value+='"';i++}else quoted=!quoted}else if(c===','&&!quoted){row.push(value);value=''}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&raw[i+1]==='\n')i++;row.push(value);value='';if(row.some(function(x){return x.trim()}))out.push(row);row=[]}else value+=c}row.push(value);if(row.some(function(x){return x.trim()}))out.push(row);return out}
 function dateVal(v){v=String(v||'').trim();if(!v)return '';if(/^\d{4}-\d\d-\d\d/.test(v))return v.slice(0,10);var m=v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);if(m){var y=+m[3];if(y<100)y+=y>50?1900:2000;return y+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2)}return ''}
@@ -348,7 +359,12 @@ window.PLLab={
 try{var savedFixtures=JSON.parse(localStorage.getItem('pllab_manual_fixtures_v3')||'[]');if(Array.isArray(savedFixtures))manualFixtures=savedFixtures.filter(function(f){return f&&f.home&&f.away&&typeof f.date==='string'&&Number.isFinite(Date.parse(f.date))}).slice(-150)}catch(e){}
 try{var savedOdds=JSON.parse(localStorage.getItem('pllab_manual_odds_v3')||'[]');if(Array.isArray(savedOdds))manualOdds=savedOdds.filter(function(o){return o&&typeof o.provider==='string'&&typeof o.fixture==='string'&&[o.h,o.d,o.a].every(function(x){return Number.isFinite(x)&&x>1&&x<=500})}).slice(-150)}catch(e){}
 try{var old=JSON.parse(localStorage.getItem('pllab_history_v1')||'[]');if(Array.isArray(old)&&old.length)data=old.filter(function(r){return r&&typeof r.hg==='number'&&typeof r.ag==='number'&&r.home&&r.away}).slice(-7600)}catch(e){}
-updateAll();syncFromPredictions();
+updateAll();
+try{
+  var savedTab=localStorage.getItem('pllab_last_tab_v1');
+  if(savedTab&&document.getElementById(savedTab)&&document.querySelector('[data-tab="'+savedTab+'"]'))navigate(savedTab);
+}catch(e){}
+syncFromPredictions();
 fetch('/api/config').then(function(r){if(!r.ok)throw Error('Configuration status unavailable');return r.json()}).then(function(config){
   if(config.footballDataConfigured){
     setText('fixtureState','Football feed available');el('fixtureState').className='good';
