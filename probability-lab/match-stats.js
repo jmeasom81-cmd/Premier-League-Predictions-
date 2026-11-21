@@ -83,83 +83,6 @@ function parseFile(source,fileName){
  if(!parsed.length)throw Error(fileName+': no completed Premier League matches with additional statistics.');
  return{rows:parsed,skipped,nonEpl};
 }
-function seasonURL(value){
- const [start,end]=value.split('-');
- if(!/^\d{4}$/.test(start)||!/^\d{4}$/.test(end)||Number(end)!==Number(start)+1)return null;
- if(+start<2010||+start>2025)return null;
- const code=start.slice(-2)+end.slice(-2);
- return 'https://www.football-data.co.uk/mmz4281/'+code+'/E0.csv';
-}
-// No live navigation to external CSV downloads from the ChatGPT web view:
-// an Android CSV download may close the entire embedded browser.
-const SEASON_KEY='pllab_stats_season_v1';
-const APP_URL='https://premier-league-probability-lab.vercel.app';
-function updateDownload(){
- const value=$('fdSourceSeason').value,url=seasonURL(value);
- const address=$('fdCsvUrl');
- if(address)address.value=url||'';
- try{if(url)localStorage.setItem(SEASON_KEY,value)}catch(_){}
- document.querySelectorAll('[data-fd-season]').forEach(b=>{
-  const selected=b.dataset.fdSeason===value;
-  b.setAttribute('aria-pressed',String(selected));
-  b.classList.toggle('active',selected);
- });
-}
-function buildSeasonButtons(){
- const recent=$('fdSeasonButtonsRecent'),older=$('fdSeasonButtonsOlder');
- if(!recent||!older)return;
- try{const last=localStorage.getItem(SEASON_KEY);if(seasonURL(last))$('fdSourceSeason').value=last}catch(_){}
- for(let year=2025;year>=2010;year--){
-  const value=year+'-'+(year+1);
-  const label=year+'/'+String(year+1).slice(-2);
-  const b=document.createElement('button');
-  b.type='button';
-  b.className='fd-season-choice';
-  b.dataset.fdSeason=value;
-  b.textContent=label;
-  b.setAttribute('aria-pressed','false');
-  b.addEventListener('click',()=>{
-   $('fdSourceSeason').value=value;
-   updateDownload();
-  });
-  (year>=2020?recent:older).appendChild(b);
- }
- updateDownload();
-}
-async function copyToClipboard(text,input){
- // Primary path requires a direct tap + secure origin; fallback leaves the
- // selected URL visible for Android's native Copy operation.
- if(navigator.clipboard&&typeof navigator.clipboard.writeText==='function'){
-   try{await navigator.clipboard.writeText(text);return true}catch(_){}
- }
- if(input){
-   try{
-     input.focus();
-     input.select();
-     input.setSelectionRange?.(0,text.length);
-     if(typeof document.execCommand==='function'&&document.execCommand('copy'))return true;
-   }catch(_){}
- }
- return false;
-}
-function copySeasonUrl(){
- const url=seasonURL($('fdSourceSeason').value);
- if(!url)return $('fdCopyStatus').textContent='Select a season first.';
- // Run from a click handler, not background work.
- copyToClipboard(url,$('fdCsvUrl')).then(ok=>{
-   const msg=ok?'CSV URL copied. Open Chrome, tap the address bar and paste to download.':'Select the address above and use Copy, then paste into Chrome.';
-   $('fdCopyStatus').textContent=msg;
-   $('fdCopyStatus').className='fd-message '+(ok?'good':'warn');
- });
-}
-function copyAppUrl(){
- // Use the app's canonical domain, not the temporary embedded web-view URL.
- copyToClipboard(APP_URL,null).then(ok=>{
-   $('fdCopyAppStatus').textContent=ok?
-    'App address copied. Open Chrome and paste it in the address bar. Then return to Match Statistics to download and import the CSV.':
-    'To use Chrome, manually copy this app address: '+APP_URL;
- });
-}
 function fmt(x,digits=1){return Number.isFinite(x)?x.toFixed(digits):'—'}
 function countCoverage(rows,field){return rows.filter(x=>x[field]!=null).length}
 function matchingRecords(){
@@ -181,7 +104,7 @@ function renderOverview(){
  $('fdConflictCount').textContent=joined.conflicts.toLocaleString('en-GB');
  $('fdStatsSourceDetails').textContent=data.length?
   'Imported '+data.length.toLocaleString('en-GB')+' match-stat records. '+joined.linked.toLocaleString('en-GB')+' scorelines matched our results history; '+joined.sourceOnly.toLocaleString('en-GB')+' do not yet have an identical fixture in that history. '+joined.conflicts+' disputed result(s) excluded from comparisons. All data is stored in this browser.':
-  'No Football-Data match-stat files have been imported on this device. Results-only analysis remains available in the other tabs.';
+  'No optional detailed match statistics are loaded. Results-based Premier League comparisons below use your existing match archive.';
  const coverage=['hthg','hs','hst','hc','hf','hy','hr'].map(k=>{
   const n=countCoverage(rows,k),p=rows.length?Math.round(n/rows.length*100):0;
   return '<div class="fd-cover"><div class="minirow"><span>'+escape(labels[k])+'</span><b>'+n.toLocaleString('en-GB')+' / '+rows.length.toLocaleString('en-GB')+' ('+p+'%)</b></div><div class="progress"><span style="width:'+p+'%"></span></div></div>'
@@ -217,7 +140,8 @@ function renderSeasonTable(){
 
 function teams(){
  const t=new Map();
- data.forEach(r=>[r.home,r.away].forEach(v=>{const k=normal(v);if(k&&!t.has(k))t.set(k,core.getTeams().find(x=>normal(x)===k)||v)}));
+ const source=data.length?data:core.getData();
+ source.forEach(r=>[r.home,r.away].forEach(v=>{const k=normal(v);if(k&&!t.has(k))t.set(k,core.getTeams().find(x=>normal(x)===k)||v)}));
  return [...t.values()].sort((a,b)=>a.localeCompare(b));
 }
 function refreshSelectors(){
@@ -231,7 +155,8 @@ function refreshSelectors(){
 function matchRowsForClub(team,mode){
  if(!team)return [];
  const normTeam=normal(team),period=$('fdMatchWindow').value;
- const m=matchingRecords().matched.filter(r=>{
+ const source=data.length?matchingRecords().matched:core.getData();
+ const m=source.filter(r=>{
   const h=normal(r.home)===normTeam,a=normal(r.away)===normTeam;
   return mode==='home'?h:mode==='away'?a:h||a
  }).sort((a,b)=>b.date.localeCompare(a.date));
@@ -281,7 +206,7 @@ function tableRow(name,h,a,isRate){
 }
 function renderCompare(){
  const h=$('fdHomeClub').value,a=$('fdAwayClub').value,modeH=$('fdHomeVenue').value,modeA=$('fdAwayVenue').value;
- if(!data.length||!h||!a){$('fdComparison').innerHTML='<div class="empty">Import a Football-Data CSV to compare actual shots, corners, fouls, cards and first-half performances.</div>';$('fdRecentGames').innerHTML='';return}
+ if(!h||!a){$('fdComparison').innerHTML='<div class="empty">Waiting for Premier League results to load. Open Data & Methods to import historical seasons.</div>';$('fdRecentGames').innerHTML='';return}
  const homeRows=matchRowsForClub(h,modeH),awayRows=matchRowsForClub(a,modeA);
  const hstats=metricRows(valsForTeam(homeRows,h)),astats=metricRows(valsForTeam(awayRows,a));
  const columns=[
@@ -291,7 +216,7 @@ function renderCompare(){
  ['Leading at half-time','firstLead',true],['Half-time leads converted into wins','leadHeld',true],
  ['Avoided defeat after trailing at half-time','recovery',true]];
  $('fdCompareTitle').textContent=h+' ('+homeRows.length+' matches) vs '+a+' ('+awayRows.length+' matches)';
- $('fdComparison').innerHTML='<div class="tablewrap"><table><thead><tr><th>Statistic</th><th>'+escape(h)+'</th><th>'+escape(a)+'</th></tr></thead><tbody>'+
+ $('fdComparison').innerHTML=(data.length?'':'<p class="hint">Results-only view. Shots, corners, cards and half-time figures are unavailable without an additional authorised match-statistics dataset.</p>')+'<div class="tablewrap"><table><thead><tr><th>Statistic</th><th>'+escape(h)+'</th><th>'+escape(a)+'</th></tr></thead><tbody>'+
  columns.map(x=>tableRow(x[0],hstats[x[1]],astats[x[1]],x[2])).join('')+'</tbody></table></div>'+
  '<p class="fine">Samples in brackets show matches actually containing each statistic. Shot accuracy averages each match’s on-target share; it is not a weighted season percentage. Inferred half-time patterns are descriptive, not proven prediction edges.</p>';
  const recent=homeRows.slice(0,7);
@@ -300,7 +225,7 @@ function renderCompare(){
 }
 function renderIntel(){
  const target=$('fdIntelExtras');if(!target)return;
- if(!data.length){target.innerHTML='<div class="panel"><h3>Extra match statistics</h3><p class="hint">Shots, shots on target, half-time performance, corners and cards will appear after importing Football-Data CSV files in Match Statistics.</p><button class="btn secondary" id="fdOpenStats">Open Match Statistics</button></div>'}
+ if(!data.length){target.innerHTML='<div class="panel"><h3>Extra match statistics</h3><p class="hint">Shots, corners, cards and half-time scores need a separately permitted football dataset. Your results-only comparison is still available in Match Statistics, with no blocked downloads.</p><button class="btn secondary" id="fdOpenStats">Open Match Statistics</button></div>'}
  else{
  const h=$('matchIntelHome')?.value||$('fdHomeClub').value,a=$('matchIntelAway')?.value||$('fdAwayClub').value;
  if(!h||!a){target.innerHTML='';return}
@@ -345,9 +270,9 @@ function clearRecords(){
  try{localStorage.removeItem(KEY);data=[];render();status('Extra match statistics cleared. Your existing goals and results history is unaffected.')}
  catch(_){status('Storage unavailable. Could not clear imported records.',true)}
 }
-buildSeasonButtons();
-$('fdCopyLink').addEventListener('click',copySeasonUrl);
-$('fdCopyAppLink').addEventListener('click',copyAppUrl);
+
+
+
 $('fdImportButton').addEventListener('click',chooseFiles);
 $('fdClearExtra').addEventListener('click',clearRecords);
 ['fdHomeClub','fdAwayClub','fdMatchWindow','fdHomeVenue','fdAwayVenue'].forEach(id=>$(id).addEventListener('change',renderCompare));
