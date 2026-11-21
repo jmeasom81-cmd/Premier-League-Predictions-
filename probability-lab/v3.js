@@ -177,7 +177,7 @@ function makeBackup(){
  download('probability-lab-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({schema:'probability-lab-offline-backup',version:3,createdAt:new Date().toISOString(),records},null,2),'application/json');
  setAlert('backupStatus','A JSON backup download was generated. Store it somewhere safe; browser storage is device-specific.');
 }
-function restoreBackup(file){
+function restoreBackup(file){if(window.PLLabViewerMode)return;
  if(!file)return;
  if(file.size>7*1024*1024){setAlert('backupStatus','Backup is too large (maximum 7 MB).');return}
  const reader=new FileReader();
@@ -199,7 +199,7 @@ function restoreBackup(file){
   if(!history.every(validHistory)||!fixtures.every(validFixture)||!odds.every(validOdds)||!journal.every(validJournal)||!extraStats.every(validStats)){
    setAlert('backupStatus','Invalid or unsafe records found. No changes made.');return}
   if(!window.confirm('Replace this browser’s Probability Lab history, match statistics, fixtures, odds and journal with the selected backup?')){setAlert('backupStatus','Restore cancelled.');return}
-  try{for(const k of keys)localStorage.setItem(k,JSON.stringify(r[k]));window.location.reload()}catch(e){setAlert('backupStatus','Browser storage unavailable. Restore not completed.')}
+  try{if(window.PLLabViewerMode)return;for(const k of keys)localStorage.setItem(k,JSON.stringify(r[k]));window.location.reload()}catch(e){setAlert('backupStatus','Browser storage unavailable. Restore not completed.')}
  };
  reader.readAsText(file);
 }
