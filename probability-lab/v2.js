@@ -105,7 +105,7 @@ function calibratedForecasts(){
  const ordered=all.slice().sort((a,b)=>a.date.localeCompare(b.date));
  const bins=[{min:0,max:.4,count:0,pred:0,success:0},{min:.4,max:.5,count:0,pred:0,success:0},{min:.5,max:.6,count:0,pred:0,success:0},{min:.6,max:1.01,count:0,pred:0,success:0}];
  let n=0,brier=0,baseline=0,logloss=0,hit=0;
- for(let i=60;i<ordered.length;i++){
+ for(let i=Math.max(60,ordered.length-1200);i<ordered.length;i++){
   const r=ordered[i],train=ordered.slice(0,i).filter(t=>t.date<r.date);
   if(train.length<40)continue; // no knowledge of matches on the same date
   const m=core.modelFor(r.home,r.away,train);
@@ -129,7 +129,7 @@ function renderCalibration(){
  if(c.status){$('calibrationContent').innerHTML='<div class="v2-zero">'+esc(c.status)+'</div>';return}
  let html='<div class="v2-statgrid"><div class="v2-stat"><small>Tested forecasts</small><strong>'+c.n+'</strong></div><div class="v2-stat"><small>Model Brier ↓</small><strong>'+c.brier.toFixed(3)+'</strong></div><div class="v2-stat"><small>Baseline Brier ↓</small><strong>'+c.baseline.toFixed(3)+'</strong></div><div class="v2-stat"><small>Outcome accuracy</small><strong>'+percent(c.accuracy)+'</strong></div></div>';
  html+='<div class="v2-callout '+(c.brier>=c.baseline?'warn':'')+'">'+(c.brier<c.baseline?'The model scored better than the simple pre-match result-frequency baseline in this dataset.':'The model did not outperform a simple pre-match result-frequency baseline in this dataset.')+' Lower Brier scores mean better calibrated and more accurate probability forecasts overall. Log loss: '+c.logloss.toFixed(3)+'. This is not evidence of betting profitability.</div>';
- html+='<h3 style="margin-top:18px">Favourite outcome calibration</h3><p class="hint">When the model said the most likely outcome had a given probability, how often did that outcome actually happen?</p>';
+ html+='<p class="hint">Walk-forward evaluation uses up to the most recent 1,200 fixtures; each forecast only sees earlier-dated results. Earlier seasons remain available in the season explorer.</p><h3 style="margin-top:18px">Favourite outcome calibration</h3><p class="hint">When the model said the most likely outcome had a given probability, how often did that outcome actually happen?</p>';
  html+='<div class="v2-calibration muted"><span>Confidence</span><span>Observed success</span><span>Predicted</span><span>Games</span></div>';
  for(const b of c.bins){const label=Math.round(b.min*100)+'–'+(b.max>1?'100':Math.round(b.max*100))+'%';if(!b.count){html+='<div class="v2-calibration"><span>'+label+'</span><span class="muted">No matches</span><span>—</span><span>0</span></div>';continue}html+='<div class="v2-calibration"><span>'+label+'</span><div class="track" title="Observed '+percent(b.success/b.count)+'"><i style="width:'+percent(b.success/b.count)+'"></i></div><span>'+percent(b.pred/b.count)+'</span><span>'+b.count+'</span></div><div class="fine">Observed '+percent(b.success/b.count)+' from '+b.count+' matches; sample'+(b.count<15?' too small for strong conclusions.':'.')+'</div>';}
  $('calibrationContent').innerHTML=html;
@@ -163,7 +163,9 @@ function renderOddsLens(){
  $('oddsResearch').innerHTML=h;
 }
 function refresh(){
- renderClub();renderJournal();renderCalibration();renderOddsLens();
+ renderClub();renderJournal();renderOddsLens();
+ // Audit can be compute-heavy over many seasons. Run when requested.
+ if(document.getElementById('audit')?.classList.contains('active'))renderCalibration();
 }
 $('clubPicker').addEventListener('change',e=>{currentClub=e.target.value;renderClub()});
 ['clubSide','clubRange'].forEach(id=>$(id).addEventListener('change',renderClub));
