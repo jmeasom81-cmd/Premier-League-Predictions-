@@ -206,8 +206,38 @@ function renderGuide(){
  get('gettingStarted').innerHTML='<div class="v3-number-steps"><div class="v3-step"><small>01 · SET UP MATCHES</small><b>Build a fixture workspace</b><p>Enter upcoming clubs and a verified kick-off. The app works even without a live fixture API.</p><button class="btn secondary" data-v3-go="desk">Add a fixture</button></div><div class="v3-step"><small>02 · ADD EVIDENCE</small><b>Import real match results</b><p>Use a CSV with Date, HomeTeam, AwayTeam, FTHG and FTAG. Your history stays on this device.</p><button class="btn secondary" data-v3-go="data">Import results</button></div><div class="v3-step"><small>03 · ANALYSE</small><b>Explore models and prices</b><p>Compare club form, run goal scenarios and enter decimal odds to inspect market-implied probabilities.</p><button class="btn secondary" data-v3-go="intel">Research a match</button></div></div><p class="v2-meta">Current local data: '+rows+' results, '+fixtures+' personal fixtures, '+odds+' saved manual odds quotes. API keys are not needed for these activities.</p>';
  get('gettingStarted').querySelectorAll('[data-v3-go]').forEach(b=>b.onclick=()=>document.querySelector('[data-tab="'+b.dataset.v3Go+'"]')?.click());
 }
+
+function wilson95(success,n){
+ if(!n)return null;
+ const z=1.96,p=success/n,z2=z*z,den=1+z2/n;
+ const center=(p+z2/(2*n))/den,margin=z*Math.sqrt((p*(1-p)+z2/(4*n))/n)/den;
+ return[Math.max(0,center-margin),Math.min(1,center+margin)];
+}
+function renderSeasons(){
+ const target=get('seasonTrendTable');if(!target)return;
+ const rows=core.getData().filter(r=>r.date&&/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&Number.isFinite(Date.parse(r.date)));
+ if(!rows.length){target.innerHTML='<div class="v3-cta">Import dated match results to see actual seasonal scoring, home advantage and draw frequencies.</div>';return}
+ const buckets={};
+ for(const r of rows){
+  const year=Number(r.date.slice(0,4)),month=Number(r.date.slice(5,7)),season=year-(month<7?1:0);
+  if(!buckets[season])buckets[season]={season,n:0,home:0,draw:0,away:0,goals:0,btts:0,over:0};
+  const t=buckets[season];t.n++;t.goals+=r.hg+r.ag;
+  if(r.hg>r.ag)t.home++;else if(r.hg===r.ag)t.draw++;else t.away++;
+  if(r.hg>0&&r.ag>0)t.btts++;if(r.hg+r.ag>2)t.over++;
+ }
+ const data=Object.values(buckets).sort((a,b)=>b.season-a.season);
+ const table='<div class="tablewrap"><table class="v3-table"><thead><tr><th>Season*</th><th>Games</th><th>Home</th><th>Draw</th><th>Away</th><th>Goals / game</th><th>BTTS</th><th>Over 2.5</th></tr></thead><tbody>'+data.map(x=>'<tr><td>'+x.season+'–'+String(x.season+1).slice(-2)+'</td><td>'+x.n+'</td><td>'+pct(x.home/x.n)+'</td><td>'+pct(x.draw/x.n)+'</td><td>'+pct(x.away/x.n)+'</td><td>'+(x.goals/x.n).toFixed(2)+'</td><td>'+pct(x.btts/x.n)+'</td><td>'+pct(x.over/x.n)+'</td></tr>').join('')+'</tbody></table></div>';
+ const overall=rows.length,d=rows.filter(x=>x.hg===x.ag).length,home=rows.filter(x=>x.hg>x.ag).length,away=overall-home-d;
+ const ci=wilson95(d,overall);
+ const homeCi=wilson95(home,overall);
+ target.innerHTML=table+'<p class="hint">*Grouped by July–June season boundaries from the uploaded match dates. Partially imported seasons are not complete league statistics. A full league season usually has 380 matches.</p>'+
+  '<div class="v3-sideby"><div class="v3-team"><h3>Observed draw frequency</h3><div class="v3-figure"><small>All imported dated results</small><b>'+pct(d/overall)+'</b><em>Approx. 95% Wilson interval: '+pct(ci[0])+'–'+pct(ci[1])+'</em></div></div><div class="v3-team"><h3>Observed home-win frequency</h3><div class="v3-figure"><small>All imported dated results</small><b>'+pct(home/overall)+'</b><em>Approx. 95% Wilson interval: '+pct(homeCi[0])+'–'+pct(homeCi[1])+'</em></div></div></div>'+
+  '<p class="fine">Wilson intervals describe sampling uncertainty if matches were independent and representative. They are not forward-looking predictive intervals, and systematic changes in the league are not captured.</p>';
+}
+
 function refresh(){
  renderQuality();
+ renderSeasons();
  renderGuide();
  renderFixtureDesk();
  renderIntel();
