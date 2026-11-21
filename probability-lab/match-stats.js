@@ -241,7 +241,7 @@ function renderIntel(){
 function render(){
  renderOverview();renderSeasonTable();refreshSelectors();renderCompare();renderIntel();
 }
-function chooseFiles(){
+function chooseFiles(){if(window.PLLabViewerMode)return status('Viewer mode: importing files is disabled.',true);
  const input=$('fdImportFiles');if(!input.files?.length){status('Choose one or more Premier League CSV files before importing.',true);return}
  const files=Array.from(input.files);
  if(files.length>20||files.some(f=>f.size>MAX_FILE_BYTES)){status('Choose at most 20 season CSV files, each smaller than 2.2 MB.',true);return}
@@ -264,7 +264,7 @@ function chooseFiles(){
  finally{button.disabled=false}
  })();
 }
-function clearRecords(){
+function clearRecords(){if(window.PLLabViewerMode)return status('Viewer mode: deleting records is disabled.',true);
  if(!data.length)return status('No extra match statistics to clear.');
  if(!window.confirm('Delete the imported shots, half-time and other match statistics from this browser? Your Premier League results and predictions will remain unchanged.'))return;
  try{localStorage.removeItem(KEY);data=[];render();status('Extra match statistics cleared. Your existing goals and results history is unaffected.')}
