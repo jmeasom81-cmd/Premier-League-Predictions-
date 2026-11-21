@@ -90,13 +90,15 @@ function seasonURL(value){
  const code=start.slice(-2)+end.slice(-2);
  return 'https://www.football-data.co.uk/mmz4281/'+code+'/E0.csv';
 }
+// No live navigation to external CSV downloads from the ChatGPT web view:
+// an Android CSV download may close the entire embedded browser.
+const SEASON_KEY='pllab_stats_season_v1';
+const APP_URL='https://premier-league-probability-lab.vercel.app';
 function updateDownload(){
  const value=$('fdSourceSeason').value,url=seasonURL(value);
- const link=$('fdDownloadLink');
- if(!url){link.removeAttribute('href');link.textContent='Select a season';return}
- link.href=url;link.textContent='Download '+value.replace('-','/')+' Premier League CSV';
- // Highlight selection inside the page rather than invoking Android's
- // system <select> picker, which was closing the embedded web browser.
+ const address=$('fdCsvUrl');
+ if(address)address.value=url||'';
+ try{if(url)localStorage.setItem(SEASON_KEY,value)}catch(_){}
  document.querySelectorAll('[data-fd-season]').forEach(b=>{
   const selected=b.dataset.fdSeason===value;
   b.setAttribute('aria-pressed',String(selected));
@@ -106,6 +108,7 @@ function updateDownload(){
 function buildSeasonButtons(){
  const recent=$('fdSeasonButtonsRecent'),older=$('fdSeasonButtonsOlder');
  if(!recent||!older)return;
+ try{const last=localStorage.getItem(SEASON_KEY);if(seasonURL(last))$('fdSourceSeason').value=last}catch(_){}
  for(let year=2025;year>=2010;year--){
   const value=year+'-'+(year+1);
   const label=year+'/'+String(year+1).slice(-2);
@@ -122,6 +125,40 @@ function buildSeasonButtons(){
   (year>=2020?recent:older).appendChild(b);
  }
  updateDownload();
+}
+async function copyToClipboard(text,input){
+ // Primary path requires a direct tap + secure origin; fallback leaves the
+ // selected URL visible for Android's native Copy operation.
+ if(navigator.clipboard&&typeof navigator.clipboard.writeText==='function'){
+   try{await navigator.clipboard.writeText(text);return true}catch(_){}
+ }
+ if(input){
+   try{
+     input.focus();
+     input.select();
+     input.setSelectionRange?.(0,text.length);
+     if(typeof document.execCommand==='function'&&document.execCommand('copy'))return true;
+   }catch(_){}
+ }
+ return false;
+}
+function copySeasonUrl(){
+ const url=seasonURL($('fdSourceSeason').value);
+ if(!url)return $('fdCopyStatus').textContent='Select a season first.';
+ // Run from a click handler, not background work.
+ copyToClipboard(url,$('fdCsvUrl')).then(ok=>{
+   const msg=ok?'CSV URL copied. Open Chrome, tap the address bar and paste to download.':'Select the address above and use Copy, then paste into Chrome.';
+   $('fdCopyStatus').textContent=msg;
+   $('fdCopyStatus').className='fd-message '+(ok?'good':'warn');
+ });
+}
+function copyAppUrl(){
+ // Use the app's canonical domain, not the temporary embedded web-view URL.
+ copyToClipboard(APP_URL,null).then(ok=>{
+   $('fdCopyAppStatus').textContent=ok?
+    'App address copied. Open Chrome and paste it in the address bar. Then return to Match Statistics to download and import the CSV.':
+    'To use Chrome, manually copy this app address: '+APP_URL;
+ });
 }
 function fmt(x,digits=1){return Number.isFinite(x)?x.toFixed(digits):'—'}
 function countCoverage(rows,field){return rows.filter(x=>x[field]!=null).length}
@@ -309,6 +346,8 @@ function clearRecords(){
  catch(_){status('Storage unavailable. Could not clear imported records.',true)}
 }
 buildSeasonButtons();
+$('fdCopyLink').addEventListener('click',copySeasonUrl);
+$('fdCopyAppLink').addEventListener('click',copyAppUrl);
 $('fdImportButton').addEventListener('click',chooseFiles);
 $('fdClearExtra').addEventListener('click',clearRecords);
 ['fdHomeClub','fdAwayClub','fdMatchWindow','fdHomeVenue','fdAwayVenue'].forEach(id=>$(id).addEventListener('change',renderCompare));
