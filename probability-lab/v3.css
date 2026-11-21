@@ -1,0 +1,50 @@
+
+/* Probability Lab V3 — manual fixture desk, match intelligence, scenario studio */
+.v3-feature-note{padding:15px 18px;border:1px solid #345d66;border-radius:14px;background:linear-gradient(135deg,#163c45,#14283d);margin-bottom:16px}
+.v3-feature-note strong{font-size:15px}.v3-feature-note p{font-size:12px;color:#b6d0dc;margin:7px 0 0;line-height:1.65}
+.v3-figures{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:13px 0 17px}
+.v3-figure{background:#0a2032;border-radius:12px;padding:14px;border:1px solid #2f4b64}
+.v3-figure small{display:block;color:#9ebbd0;font-size:11px}.v3-figure b{font-size:25px;display:block;margin:8px 0;font-variant-numeric:tabular-nums}
+.v3-figure em{font-size:10px;color:#91abbf;font-style:normal}
+.v3-sideby{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.v3-team{background:#10263c;border:1px solid #2a4961;border-radius:14px;padding:14px;min-width:0}
+.v3-team h3{margin:0 0 10px;font-size:15px}
+.v3-bars{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:12px}
+.v3-bars label{width:120px;color:#b4c8da}
+.v3-bars .rail{height:8px;border-radius:8px;background:#253f56;flex:1;overflow:hidden}
+.v3-bars .rail i{display:block;background:#61c5ac;height:100%}
+.v3-bars b{width:48px;text-align:right}
+.v3-match-row{padding:12px 0;display:flex;justify-content:space-between;align-items:center;gap:7px;border-bottom:1px solid #294259;font-size:12px}
+.v3-match-row small{color:#a5bfd3}
+.v3-kickoff{font-size:11px;color:#a3b9d1}
+.v3-result-pip{font-size:11px;padding:5px 8px;border-radius:7px;color:#061928;min-width:32px;text-align:center;font-weight:850}
+.v3-result-pip.w{background:#56d0a4}.v3-result-pip.d{background:#e1b66c}.v3-result-pip.l{background:#e38a8a}
+.v3-filters{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.v3-filters .field{flex:1;min-width:150px}
+.v3-cta{padding:16px;border:1px dashed #405d77;border-radius:12px;color:#a7c4d5;font-size:12px;line-height:1.7}
+.v3-slider-row{display:grid;grid-template-columns:135px 1fr 58px;gap:12px;align-items:center;margin:15px 0}
+.v3-slider-row span{font-size:12px;color:#c4d8e9}
+.v3-slider-row output{font-size:13px;text-align:right;font-weight:750}
+.v3-slider-row input[type=range]{padding:0;background:transparent;border:none;accent-color:#66d5b7}
+.v3-dist{display:flex;height:22px;border-radius:9px;overflow:hidden;margin:11px 0 15px;background:#1d3546}
+.v3-dist i:nth-child(1){background:#4fc49d}.v3-dist i:nth-child(2){background:#ddad64}.v3-dist i:nth-child(3){background:#6d9ed7}
+.v3-forecastline{display:grid;grid-template-columns:88px 1fr 54px;gap:8px;align-items:center;margin:8px 0;font-size:12px}
+.v3-forecastline .track{height:9px;background:#223a4c;border-radius:10px;overflow:hidden}
+.v3-forecastline .track i{height:100%;display:block;background:#54c9ad}
+.v3-forecastline b{text-align:right;font-variant-numeric:tabular-nums}
+.v3-tag{display:inline-flex;background:#1b3d4c;border:1px solid #32746b;border-radius:8px;padding:6px 9px;color:#a7e4d0;font-size:11px;margin:5px 5px 5px 0}
+.v3-tag.warn{background:#443426;border-color:#8a6540;color:#f5c99b}
+.v3-number-steps{counter-reset:steps;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.v3-step{background:#102639;border:1px solid #2f4b63;padding:15px;border-radius:12px}
+.v3-step b{display:block;font-size:13px}.v3-step p{font-size:12px;color:#aac2d4;line-height:1.55;margin:9px 0}
+.v3-step small{font-size:10px;color:#71d1af;font-weight:800}
+.v3-table th{white-space:normal}.v3-table td{white-space:nowrap}
+.v3-h2h{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:13px 0}
+.v3-h2h .v3-figure{text-align:center;padding:12px 8px}
+.v3-h2h .v3-figure b{font-size:21px}
+.v3-alert{background:#372b23;border:1px solid #8d6c43;border-radius:12px;padding:14px;color:#f5d2a6;font-size:12px;line-height:1.65;margin-top:15px}
+.v3-strong{font-weight:700;color:#f2f9ff}
+.v3-buttonline{display:flex;flex-wrap:wrap;gap:8px}
+.v3-smallbutton{font-size:11px;padding:7px 10px;color:#d5eafd;border-radius:8px;border:1px solid #49627b;background:#1b3146;cursor:pointer}
+.v3-smallbutton:hover{background:#26465a}
+@media(max-width:740px){.v3-number-steps{grid-template-columns:1fr}.v3-sideby{grid-template-columns:1fr}.v3-slider-row{grid-template-columns:110px 1fr 44px;gap:7px}.v3-figures{grid-template-columns:repeat(2,1fr)}}
