@@ -59,3 +59,17 @@ Statistical caution: these football facts reflect what was recorded in our Predi
 On failure, local imported history remains accessible. The historical dataset and upcoming fixtures can still be edited via existing CSV/Fixture Desk controls.
 
 Verification: source SQL counts show 380 Premier League historical results from 2025/26 and 106 completed 2026/27 results. Basic RLS status was rechecked. The newest Vercel release built READY and a simulated app startup loaded 486 matches, displayed connection status and saved data. Direct authenticated HTTP round-trip testing of the live Edge feed was not possible from the test environment, so verify the Connected badge in the deployed app.
+
+## Historical Premier League archive (v5)
+
+The Data & Methods page now provides a one-click 5/10/15 season importer. OpenFootball (CC0-1.0 public-domain license) supplied the static scorelines in /history-packs/.
+
+Available packages: 2020/21–2024/25 (5 seasons), 2015/16–2024/25 (10 seasons), and 2010/11–2024/25 (15 seasons). Each pack was checked to contain precisely 380 completed Premier League results per season and no duplicate date/team pairs. No football API token or subscription is required to import them.
+
+The import merges with existing local data by match date plus normalized home/away team names. It does not overwrite live Predictions database corrections on overlapping fixtures, and repeated imports are idempotent. The browser's history limit is 7,600 rows to allow 5,700 archived scores plus later seasons. Use the app's backup/export tool if switching devices or browsers.
+
+The probability model's team-specific goal estimates now use up to the last three years of dated matches available before the estimated fixture; earlier seasons are retained for historical trend exploration and chronological audit. The app's audit evaluates at most the latest 1,200 fixtures for responsiveness, without including same-day results in training.
+
+Season statistics preferentially use the provided archive season label, which correctly groups late matches from the Covid-delayed 2019/20 season in July 2020. Fallback seasonal inference from date alone is less reliable for unusual schedules.
+
+Testing: all 15 seasons independently validated (5,700 results and zero fixture/date duplicates). A simulated combined app startup started with 486 results and then tested imports of 5, 10, 15, and a repeated 15 seasons. Result totals were 2,386, 4,286, 6,186, and 6,186. The direct public production UI still requires browser-level visual verification.
