@@ -134,7 +134,7 @@ var starterFixtures=[]; // No fabricated matches shown as upcoming fixtures.
 var knownTeams=['Arsenal','Aston Villa','Bournemouth','Brentford','Brighton','Chelsea','Coventry City','Crystal Palace','Everton','Fulham','Hull City','Ipswich Town','Leeds United','Liverpool','Manchester City','Manchester United','Newcastle United','Nottingham Forest','Sunderland','Tottenham Hotspur'];
 var aliases={'man city':'manchester city','man united':'manchester united','man utd':'manchester united','manchester utd':'manchester united','nottm forest':'nottingham forest',"nott'm forest":'nottingham forest','nottingham':'nottingham forest','newcastle':'newcastle united','newcastle utd':'newcastle united','tottenham':'tottenham hotspur','spurs':'tottenham hotspur','wolves':'wolverhampton wanderers','brighton & hove albion':'brighton','brighton and hove albion':'brighton','bournemouth':'bournemouth','afc bournemouth':'bournemouth','leeds':'leeds united','west ham':'west ham united','leicester':'leicester city','ipswich':'ipswich town','hull':'hull city','sunderland afc':'sunderland','coventry':'coventry city'};
 function norm(v){var s=String(v||'').trim().replace(/\bFC\b/ig,'').replace(/\bAFC\b/ig,'').replace(/[.]/g,'').replace(/\s+/g,' ').trim().toLowerCase();return aliases[s]||s}
-function display(v){var k=norm(v);return knownTeams.find(function(x){return norm(x)===k})||String(v||'').trim()}
+function display(v){var k=norm(v);return knownTeams.find(function(x){return norm(x)===k})||String(v||'').trim().replace(/\s+(?:FC|AFC)$/i,'').trim()}
 function el(id){return document.getElementById(id)}
 function pct(v){return (100*v).toFixed(1)+'%'}
 function setText(id,v){el(id).textContent=v}
@@ -146,8 +146,8 @@ function importCSV(s){var rows=csvRows(s);if(rows.length<2)throw Error('CSV need
 var hi=idx('hometeam','home','home_team'),ai=idx('awayteam','away','away_team'),gi=idx('fthg','homegoals','home_goals'),fi=idx('ftag','awaygoals','away_goals'),di=idx('date','matchdate'),dv=idx('div','division');if([hi,ai,gi,fi].some(function(x){return x<0}))throw Error('Required headings: HomeTeam, AwayTeam, FTHG, FTAG.');
 var cleaned=rows.slice(1).map(function(r,i){if(dv>=0&&r[dv]&&['E0','PL','EPL','PREMIER LEAGUE'].indexOf(r[dv].trim().toUpperCase())<0)return null;var hg=Number(r[gi]),ag=Number(r[fi]);if(!r[hi]||!r[ai]||r[gi]===''||r[fi]===''||!Number.isInteger(hg)||!Number.isInteger(ag)||hg<0||ag<0||hg>20||ag>20)return null;return{home:display(r[hi]),away:display(r[ai]),hg:hg,ag:ag,date:di>=0?dateVal(r[di]):'',order:i}}).filter(Boolean);
 if(!cleaned.length)throw Error('No completed scorelines found.');cleaned.sort(function(a,b){return a.date&&b.date?a.date.localeCompare(b.date):a.order-b.order});
-data=cleaned.slice(-3800);try{localStorage.setItem('pllab_history_v1',JSON.stringify(data))}catch(e){setText('importFeedback','Imported for this session. Browser storage is full, so it may not survive closing this tab.')}updateAll();setText('importFeedback','Imported '+data.length+' completed matches. Your results stay on this device. Repeated imports replace the previous dataset.')}
-function allTeams(){var names=knownTeams.concat(data.map(function(r){return r.home}),data.map(function(r){return r.away}),apiFixtures.map(function(r){return r.home}),apiFixtures.map(function(r){return r.away}));return Array.from(new Set(names)).filter(Boolean).sort()}
+data=cleaned.slice(-7600);try{localStorage.setItem('pllab_history_v1',JSON.stringify(data))}catch(e){setText('importFeedback','Imported for this session. Browser storage is full, so it may not survive closing this tab.')}updateAll();setText('importFeedback','Imported '+data.length+' completed matches. Your results stay on this device. Repeated imports replace the previous dataset.')}
+function allTeams(){var names=knownTeams.concat(data.map(function(r){return r.home}),data.map(function(r){return r.away}),apiFixtures.map(function(r){return r.home}),apiFixtures.map(function(r){return r.away}));var seen={};return names.filter(function(t){var k=norm(t);if(!k||seen[k])return false;seen[k]=true;return true}).sort()}
 function selectOptions(){var teams=allTeams();['homeTeam','awayTeam'].forEach(function(id){var chosen=id==='homeTeam'?selectedHome:selectedAway;el(id).innerHTML=teams.map(function(t){return '<option value="'+esc(t)+'"'+(norm(t)===norm(chosen)?' selected':'')+'>'+esc(t)+'</option>'}).join('')})}
 function esc(v){return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function fixtureList(){
@@ -175,7 +175,14 @@ function renderFixtures(){var arr=fixtureList();el('fixturePills').innerHTML=(ar
 function outcomes(games){var h=0,d=0,a=0,g=0;games.forEach(function(x){g+=x.hg+x.ag;if(x.hg>x.ag)h++;else if(x.hg===x.ag)d++;else a++});return{h:h,d:d,a:a,goals:g}}
 function updateOverview(){var n=data.length,o=outcomes(data);setText('nMatches',n);setText('homeWins',n?pct(o.h/n):'—');setText('draws',n?pct(o.d/n):'—');setText('goalsAvg',n?(o.goals/n).toFixed(2):'—');setText('seasonDescription',n?'Imported match history':'Upload a verified CSV to begin');setText('historyState',n?n+' matches loaded':'Not loaded');el('historyState').className=n?'good':'warn';el('leagueOutcomes').style.display=n?'none':'block';if(n){el('leagueStats').innerHTML='<div class="threeway"><div><small>Home</small><b>'+pct(o.h/n)+'</b></div><div><small>Draw</small><b>'+pct(o.d/n)+'</b></div><div><small>Away</small><b>'+pct(o.a/n)+'</b></div></div><div class="statrow"><span>Goals scored at home</span><b>'+(data.reduce(function(s,x){return s+x.hg},0)/n).toFixed(2)+'/match</b></div><div class="statrow"><span>Goals scored away</span><b>'+(data.reduce(function(s,x){return s+x.ag},0)/n).toFixed(2)+'/match</b></div><div class="statrow"><span>Both teams scored</span><b>'+pct(data.filter(function(x){return x.hg>0&&x.ag>0}).length/n)+'</b></div><div class="statrow"><span>Over 2.5 goals</span><b>'+pct(data.filter(function(x){return x.hg+x.ag>2}).length/n)+'</b></div>'}else el('leagueStats').innerHTML=''}
 function poisson(k,l){var f=Math.exp(-l);for(var i=1;i<=k;i++)f*=l/i;return f}
-function metrics(rows,h,a){var n=rows.length;if(n<25)return null;var lh=rows.reduce(function(s,x){return s+x.hg},0)/n,la=rows.reduce(function(s,x){return s+x.ag},0)/n;if(lh<.3||la<.3)return null;
+function metrics(rows,h,a){
+ // Train only on the most recent three years available BEFORE a fixture.
+ // Older seasons still count in the historical explorer and chronological tests.
+ var latest='';
+ for(var i=0;i<rows.length;i++){var dt=rows[i].date;if(/^\d{4}-\d{2}-\d{2}$/.test(dt||'')&&dt>latest)latest=dt}
+ if(latest){var anchor=Date.parse(latest+'T00:00:00Z'),limit=new Date(anchor-1096*86400000).toISOString().slice(0,10);
+ var recent=rows.filter(function(r){return r.date&&r.date>=limit&&r.date<=latest});if(recent.length>=25)rows=recent}
+ var n=rows.length;if(n<25)return null;var lh=rows.reduce(function(s,x){return s+x.hg},0)/n,la=rows.reduce(function(s,x){return s+x.ag},0)/n;if(lh<.3||la<.3)return null;
 var hh=rows.filter(function(r){return norm(r.home)===norm(h)}),aa=rows.filter(function(r){return norm(r.away)===norm(a)});
 if(hh.length<3||aa.length<3)return null;
 var prior=8;function shr(sum,count,mean){return(sum+prior*mean)/(count+prior)}
@@ -214,8 +221,26 @@ function mergeSharedMatches(oldRows,newRows){
   function key(r){return String(r.date||'').slice(0,10)+'|'+norm(r.home)+'|'+norm(r.away)}
   existing.forEach(function(r){if(r&&r.home&&r.away&&Number.isInteger(r.hg)&&Number.isInteger(r.ag))dedup.set(key(r),r)});
   newRows.forEach(function(r){dedup.set(key(r),r)}); // data held in our Predictions database is preferred on disagreement
-  return Array.from(dedup.values()).sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||(a.order||0)-(b.order||0)}).slice(-3800)
+  return Array.from(dedup.values()).sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||(a.order||0)-(b.order||0)}).slice(-7600)
 }
+
+function mergeArchiveResults(older){
+ if(!Array.isArray(older)||!older.length)throw Error('No historical matches supplied.');
+ var accepted=older.map(function(r,i){
+   return {date:String(r.date||''),home:display(r.home),away:display(r.away),hg:r.hg,ag:r.ag,order:i,source:r.source||'OpenFootball CC0'}
+ }).filter(function(r){
+   return /^\d{4}-\d{2}-\d{2}$/.test(r.date)&&r.home&&r.away&&norm(r.home)!==norm(r.away)&&Number.isInteger(r.hg)&&Number.isInteger(r.ag)&&r.hg>=0&&r.ag>=0&&r.hg<=30&&r.ag<=30
+ });
+ if(accepted.length!==older.length)throw Error('Invalid matches in the historical season pack.');
+ var before=data.length;
+ // Shared Predictions records and previously supplied results win on overlap.
+ data=mergeSharedMatches(accepted,data);
+ var saved=false;
+ try{localStorage.setItem('pllab_history_v1',JSON.stringify(data));saved=true}catch(e){}
+ updateAll();
+ return{before:before,total:data.length,added:data.length-before,saved:saved};
+}
+
 var sharedSyncBusy=false;
 function syncFromPredictions(){
  if(sharedSyncBusy)return;
@@ -264,7 +289,7 @@ el('syncPredictions').onclick=syncFromPredictions;
 el('syncPredictionsData').onclick=syncFromPredictions;
 
 window.PLLab={
- getData:function(){return data.slice()},refreshFromPredictions:syncFromPredictions,
+ getData:function(){return data.slice()},refreshFromPredictions:syncFromPredictions,mergeArchiveResults:mergeArchiveResults,
  getTeams:allTeams,getFixtures:fixtureList,getOdds:function(){return apiOdds.slice()},
  getManualOdds:function(){return manualOdds.slice()},getManualFixtures:function(){return manualFixtures.slice()},
  addManualFixture:addManualFixture,deleteManualFixture:deleteManualFixture,
@@ -275,7 +300,7 @@ window.PLLab={
 };
 try{var savedFixtures=JSON.parse(localStorage.getItem('pllab_manual_fixtures_v3')||'[]');if(Array.isArray(savedFixtures))manualFixtures=savedFixtures.filter(function(f){return f&&f.home&&f.away&&typeof f.date==='string'&&Number.isFinite(Date.parse(f.date))}).slice(-150)}catch(e){}
 try{var savedOdds=JSON.parse(localStorage.getItem('pllab_manual_odds_v3')||'[]');if(Array.isArray(savedOdds))manualOdds=savedOdds.filter(function(o){return o&&typeof o.provider==='string'&&typeof o.fixture==='string'&&[o.h,o.d,o.a].every(function(x){return Number.isFinite(x)&&x>1&&x<=500})}).slice(-150)}catch(e){}
-try{var old=JSON.parse(localStorage.getItem('pllab_history_v1')||'[]');if(Array.isArray(old)&&old.length)data=old.filter(function(r){return r&&typeof r.hg==='number'&&typeof r.ag==='number'&&r.home&&r.away}).slice(-3800)}catch(e){}
+try{var old=JSON.parse(localStorage.getItem('pllab_history_v1')||'[]');if(Array.isArray(old)&&old.length)data=old.filter(function(r){return r&&typeof r.hg==='number'&&typeof r.ag==='number'&&r.home&&r.away}).slice(-7600)}catch(e){}
 updateAll();syncFromPredictions();
 fetch('/api/config').then(function(r){if(!r.ok)throw Error('Configuration status unavailable');return r.json()}).then(function(config){
   if(config.footballDataConfigured){
