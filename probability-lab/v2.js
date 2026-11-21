@@ -13,7 +13,7 @@ const snapshotKey='pllab_research_journal_v2';
 let journal=[];
 let currentClub='Arsenal';
 try{const old=JSON.parse(localStorage.getItem(snapshotKey)||'[]');if(Array.isArray(old))journal=old.filter(x=>x&&x.home&&x.away&&Number.isFinite(x.homeProb)&&Number.isFinite(x.drawProb)&&Number.isFinite(x.awayProb)).slice(-100)}catch(e){journal=[]}
-function save(){try{localStorage.setItem(snapshotKey,JSON.stringify(journal))}catch(e){$('journalStatus').textContent='This browser could not save the journal. You can export the entries.'}}
+function save(){if(window.PLLabViewerMode)return;try{localStorage.setItem(snapshotKey,JSON.stringify(journal))}catch(e){$('journalStatus').textContent='This browser could not save the journal. You can export the entries.'}}
 function own(matches,club){return matches.filter(r=>norm(r.home)===norm(club)||norm(r.away)===norm(club))}
 function details(r,club){const atHome=norm(r.home)===norm(club),gf=atHome?r.hg:r.ag,ga=atHome?r.ag:r.hg;return {result:gf>ga?'W':gf===ga?'D':'L',gf,ga,atHome,other:atHome?r.away:r.home,score:r.hg+'–'+r.ag,date:r.date||'Date unknown',btts:r.hg>0&&r.ag>0,over:r.hg+r.ag>2,clean:ga===0}}
 function filteredClub(){
@@ -67,7 +67,7 @@ function scoreSnapshot(item,result){
  return {actual, brier:q.reduce((s,p,i)=>s+(p-(i===actual?1:0))**2,0)/3,
   logloss:-Math.log(Math.max(.000001,q[actual]))};
 }
-function saveForecast(){
+function saveForecast(){if(window.PLLabViewerMode)return;
  const selected=$('journalFixture').value;
  const [home,away,kickoff]=selected.split('|');
  if(!home||!away||!kickoff||!Number.isFinite(Date.parse(kickoff))||Date.parse(kickoff)<=Date.now()){$('journalStatus').textContent='Choose a future fixture to save a pre-match forecast.';return}
