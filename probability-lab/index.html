@@ -225,6 +225,20 @@ window.PLLab={
 try{var savedFixtures=JSON.parse(localStorage.getItem('pllab_manual_fixtures_v3')||'[]');if(Array.isArray(savedFixtures))manualFixtures=savedFixtures.filter(function(f){return f&&f.home&&f.away&&typeof f.date==='string'&&Number.isFinite(Date.parse(f.date))}).slice(-150)}catch(e){}
 try{var savedOdds=JSON.parse(localStorage.getItem('pllab_manual_odds_v3')||'[]');if(Array.isArray(savedOdds))manualOdds=savedOdds.filter(function(o){return o&&typeof o.provider==='string'&&typeof o.fixture==='string'&&[o.h,o.d,o.a].every(function(x){return Number.isFinite(x)&&x>1&&x<=500})}).slice(-150)}catch(e){}
 try{var old=JSON.parse(localStorage.getItem('pllab_history_v1')||'[]');if(Array.isArray(old)&&old.length)data=old.filter(function(r){return r&&typeof r.hg==='number'&&typeof r.ag==='number'&&r.home&&r.away}).slice(-3800)}catch(e){}
-updateAll();fixtureImport();if(!data.length)syncHistory();
+updateAll();
+fetch('/api/config').then(function(r){if(!r.ok)throw Error('Configuration status unavailable');return r.json()}).then(function(config){
+  if(config.footballDataConfigured){
+    setText('fixtureState','Football feed available');el('fixtureState').className='good';
+    fixtureImport();if(!data.length)syncHistory();
+  }else{
+    setText('fixturesMessage','Offline mode: no fixture API configured. Use Fixture Desk to add matches manually.');
+    if(!data.length)setText('importFeedback','Offline mode: import a match-results CSV to use the statistical models. API keys can be added later.');
+  }
+  if(config.bookmakerOddsConfigured){
+    setText('oddsState','Available — fetch odds');el('oddsState').className='good';
+    setText('oddsMessage','Odds API connection is configured. Select Fetch UK bookmaker odds to request current quotes.');
+  }
+}).catch(function(){setText('fixturesMessage','Offline features remain available. Live API readiness could not be checked.');});
+
 })();
 </script><script src="/v2.js"></script><script src="/v3.js"></script></body></html>
