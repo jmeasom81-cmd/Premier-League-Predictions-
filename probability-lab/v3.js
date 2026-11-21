@@ -21,7 +21,7 @@ function renderOptions(id,selected){
  const el=get(id);if(!el)return;
  const teams=core.getTeams();
  el.innerHTML=teams.map(t=>'<option value="'+esc(t)+'"'+(teamMatch(t,selected)?' selected':'')+'>'+esc(t)+'</option>').join('');
- if(!teams.some(t=>teamMatch(t,selected))&&teams.length)el.value=teams[0];
+ const matched=teams.find(t=>teamMatch(t,selected));el.value=matched||(teams[0]||'');
 }
 function renderSelectors(){
  ['manualFixtureHome','matchIntelHome','scenarioHome'].forEach(id=>renderOptions(id,id==='manualFixtureHome'||id==='matchIntelHome'||id==='scenarioHome'?currentHome:currentAway));
