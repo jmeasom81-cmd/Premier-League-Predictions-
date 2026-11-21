@@ -189,7 +189,7 @@ function restoreBackup(file){
   const r=parsed.records;
   if(!keys.every(k=>Array.isArray(r[k]))){setAlert('backupStatus','Backup sections are missing or invalid. No changes made.');return}
   const [history,fixtures,odds,journal]=keys.map(k=>r[k]);
-  if(history.length>3800||fixtures.length>150||odds.length>150||journal.length>100){setAlert('backupStatus','Backup exceeds the app storage limits. No changes made.');return}
+  if(history.length>7600||fixtures.length>150||odds.length>150||journal.length>100){setAlert('backupStatus','Backup exceeds the app storage limits. No changes made.');return}
   function validHistory(x){return x&&typeof x.home==='string'&&typeof x.away==='string'&&Number.isInteger(x.hg)&&Number.isInteger(x.ag)&&x.hg>=0&&x.ag>=0&&x.hg<=20&&x.ag<=20&&(!x.date||typeof x.date==='string')}
   function validFixture(x){return x&&typeof x.home==='string'&&typeof x.away==='string'&&typeof x.date==='string'&&Number.isFinite(Date.parse(x.date))}
   function validOdds(x){return x&&typeof x.fixture==='string'&&typeof x.provider==='string'&&[x.h,x.d,x.a].every(n=>Number.isFinite(n)&&n>1&&n<=500)}
@@ -219,7 +219,9 @@ function renderSeasons(){
  if(!rows.length){target.innerHTML='<div class="v3-cta">Import dated match results to see actual seasonal scoring, home advantage and draw frequencies.</div>';return}
  const buckets={};
  for(const r of rows){
-  const year=Number(r.date.slice(0,4)),month=Number(r.date.slice(5,7)),season=year-(month<7?1:0);
+  const year=Number(r.date.slice(0,4)),month=Number(r.date.slice(5,7));
+  const declared=typeof r.season==='string'&&/^\d{4}[/\-]\d{2,4}$/.test(r.season)?Number(r.season.slice(0,4)):null;
+  const season=declared===null?year-(month<7?1:0):declared;
   if(!buckets[season])buckets[season]={season,n:0,home:0,draw:0,away:0,goals:0,btts:0,over:0};
   const t=buckets[season];t.n++;t.goals+=r.hg+r.ag;
   if(r.hg>r.ag)t.home++;else if(r.hg===r.ag)t.draw++;else t.away++;
@@ -230,7 +232,7 @@ function renderSeasons(){
  const overall=rows.length,d=rows.filter(x=>x.hg===x.ag).length,home=rows.filter(x=>x.hg>x.ag).length,away=overall-home-d;
  const ci=wilson95(d,overall);
  const homeCi=wilson95(home,overall);
- target.innerHTML=table+'<p class="hint">*Grouped by July–June season boundaries from the uploaded match dates. Partially imported seasons are not complete league statistics. A full league season usually has 380 matches.</p>'+
+ target.innerHTML=table+'<p class="hint">*Uses source season labels where supplied (important for the delayed 2019/20 finish); otherwise infers seasons using July boundaries. Partially imported seasons are not complete league statistics. A full league season usually has 380 matches.</p>'+
   '<div class="v3-sideby"><div class="v3-team"><h3>Observed draw frequency</h3><div class="v3-figure"><small>All imported dated results</small><b>'+pct(d/overall)+'</b><em>Approx. 95% Wilson interval: '+pct(ci[0])+'–'+pct(ci[1])+'</em></div></div><div class="v3-team"><h3>Observed home-win frequency</h3><div class="v3-figure"><small>All imported dated results</small><b>'+pct(home/overall)+'</b><em>Approx. 95% Wilson interval: '+pct(homeCi[0])+'–'+pct(homeCi[1])+'</em></div></div></div>'+
   '<p class="fine">Wilson intervals describe sampling uncertainty if matches were independent and representative. They are not forward-looking predictive intervals, and systematic changes in the league are not captured.</p>';
 }
