@@ -77,18 +77,12 @@ button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1220px;m
       <p>Analyse historical shots, shots on target, corners, fouls, cards and half-time scores from your own downloaded Football-Data CSV files. Results-only datasets cannot supply these extra match details. This module adds observed evidence; it does not silently change the probability engine.</p></div>
     <div class="panel" id="fdImportPanel">
       <h2>1. Download a season from Football-Data.co.uk</h2>
-      <p class="hint">Choose a season and download its Premier League CSV directly from the original provider. Their published fair-usage policy is for personal research and limits automated collection, so this app does not scrape or republish their files.</p>
-      <div class="fields"><div class="field"><label for="fdSourceSeason">Season to download</label><select id="fdSourceSeason">
-        <option value="2025-2026">2025/26</option>
-        <option value="2024-2025">2024/25</option><option value="2023-2024">2023/24</option>
-        <option value="2022-2023">2022/23</option><option value="2021-2022">2021/22</option>
-        <option value="2020-2021">2020/21</option><option value="2019-2020">2019/20</option>
-        <option value="2018-2019">2018/19</option><option value="2017-2018">2017/18</option>
-        <option value="2016-2017">2016/17</option><option value="2015-2016">2015/16</option>
-        <option value="2014-2015">2014/15</option><option value="2013-2014">2013/14</option>
-        <option value="2012-2013">2012/13</option><option value="2011-2012">2011/12</option>
-        <option value="2010-2011">2010/11</option>
-      </select></div><div class="field fd-linkfield"><label>Official download</label><a class="btn secondary fd-official-link" id="fdDownloadLink" target="_blank" rel="noopener noreferrer" href="https://www.football-data.co.uk/mmz4281/2526/E0.csv">Download 2025/26 Premier League CSV</a></div></div>
+      <p class="hint">Choose a season and download its Premier League CSV directly from the original provider. Their published fair-usage policy is for personal research and limits automated collection, so this app does not scrape or republish their files. If ChatGPT closes the page when opening downloads, open this website directly in Chrome instead.</p>
+      <div class="fields"><div class="field"><label>Season to download</label>
+      <input id="fdSourceSeason" type="hidden" value="2025-2026">
+      <p class="hint">Tap a year below. This avoids opening the Android system dropdown.</p>
+      <div id="fdSeasonButtonsRecent" class="fd-season-buttons" role="group" aria-label="Recent Premier League seasons"></div>
+      <details id="fdOlderYears" class="fd-older-years"><summary>Older seasons · 2019/20 to 2010/11</summary><div id="fdSeasonButtonsOlder" class="fd-season-buttons" role="group" aria-label="Older Premier League seasons"></div></details></div><div class="field fd-linkfield"><label>Official download</label><a class="btn secondary fd-official-link" id="fdDownloadLink" target="_blank" rel="noopener noreferrer" href="https://www.football-data.co.uk/mmz4281/2526/E0.csv">Download 2025/26 Premier League CSV</a></div></div>
       <p class="fine">Original provider: <a target="_blank" rel="noopener noreferrer" href="https://www.football-data.co.uk/englandm.php">Football-Data.co.uk season downloads</a>. Available columns differ between seasons. Downloads may open in a new tab depending on your device.</p>
     </div>
     <div class="panel">
