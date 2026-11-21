@@ -124,6 +124,33 @@ function renderOverview(){
  }).join('');
  $('fdCoverage').innerHTML=rows.length?coverage:'<p class="hint">The coverage report appears as soon as you import a CSV.</p>';
 }
+function renderSeasonTable(){
+ const target=$('fdSeasonTable');if(!target)return;
+ const rows=matchingRecords().matched;
+ if(!rows.length){target.innerHTML='<p class="hint">Import match statistics to see season averages.</p>';return}
+ const groups=new Map();
+ for(const r of rows){
+  const season=typeof r.season==='string'&&r.season? r.season : guessSeason(r.date,'');
+  if(!groups.has(season))groups.set(season,[]);
+  groups.get(season).push(r);
+ }
+ function totalMean(arr,a,b){
+  const eligible=arr.filter(r=>Number.isFinite(r[a])&&Number.isFinite(r[b]));
+  return eligible.length?{n:eligible.length,x:eligible.reduce((sum,r)=>sum+r[a]+r[b],0)/eligible.length}:{n:0,x:null};
+ }
+ function percentHT(arr){
+  const eligible=arr.filter(r=>Number.isInteger(r.hthg)&&Number.isInteger(r.htag));
+  return eligible.length?{n:eligible.length,x:eligible.filter(r=>r.hthg===r.htag).length*100/eligible.length}:{n:0,x:null}
+ }
+ function displayStat(z,isPercent){
+  if(!z.n)return '—';
+  return '<b>'+z.x.toFixed(1)+(isPercent?'%':'')+'</b><span class="fine"> · '+z.n+' games</span>';
+ }
+ target.innerHTML='<table class="fd-season-table"><thead><tr><th>Season</th><th>All recorded</th><th>Shots / game</th><th>On target / game</th><th>Corners / game</th><th>Yellow cards / game</th><th>Half-time draws</th></tr></thead><tbody>'+
+ [...groups.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([season,g])=>'<tr><th scope="row">'+escape(season)+'</th><td>'+g.length+'</td><td>'+displayStat(totalMean(g,'hs','as'))+'</td><td>'+displayStat(totalMean(g,'hst','ast'))+'</td><td>'+displayStat(totalMean(g,'hc','ac'))+'</td><td>'+displayStat(totalMean(g,'hy','ay'))+'</td><td>'+displayStat(percentHT(g),true)+'</td></tr>').join('')+
+ '</tbody></table>';
+}
+
 function teams(){
  const t=new Map();
  data.forEach(r=>[r.home,r.away].forEach(v=>{const k=normal(v);if(k&&!t.has(k))t.set(k,core.getTeams().find(x=>normal(x)===k)||v)}));
@@ -223,7 +250,7 @@ function renderIntel(){
  $('fdOpenStats')?.addEventListener('click',()=>document.querySelector('[data-tab="advanced"]')?.click());
 }
 function render(){
- renderOverview();refreshSelectors();renderCompare();renderIntel();
+ renderOverview();renderSeasonTable();refreshSelectors();renderCompare();renderIntel();
 }
 function chooseFiles(){
  const input=$('fdImportFiles');if(!input.files?.length){status('Choose one or more Premier League CSV files before importing.',true);return}
