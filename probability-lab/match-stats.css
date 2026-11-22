@@ -43,3 +43,30 @@
 .fd-url-field input:focus{outline:2px solid #61bfd8}
 #fdCopyLink{min-height:48px;touch-action:manipulation}
 #fdCopyStatus.good{border-color:#368b76;color:#87edc7}
+
+/* Official StatsBomb Open Data historical football analysis */
+.os-heading{display:flex;gap:16px;align-items:start;justify-content:space-between}
+.os-heading .hint{max-width:700px}
+.os-source-mark{flex:0 0 140px;border-radius:12px;padding:10px 12px;background:#fff;display:flex;align-items:center;justify-content:center;min-height:55px}
+.os-source-mark img{display:block;width:100%;max-height:54px;object-fit:contain}
+.os-explainer{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:5px 0 13px;font-size:12px;color:#bed6e8}
+.os-explainer span{background:#1a3546;border-radius:8px;padding:7px 9px}
+.os-message{font-size:12px;line-height:1.65;color:#94d8c9;margin:15px 0;background:#0d2d38;border:1px solid #336d72;border-radius:11px;padding:12px}
+.os-message.bad{background:#392638;color:#ffa5b0;border-color:#704257}
+.os-score{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;background:#0d2537;border-radius:12px;border:1px solid #3c596d;padding:15px 12px;margin:12px 0;text-align:center}
+.os-score strong{font-size:30px;color:#eefcff;font-weight:850;white-space:nowrap}
+.os-score b{font-size:13px}
+.os-small{color:#9ebbd0;font-size:11px;margin-top:5px}
+#osSingleResult th,#osFormResult th{white-space:normal}
+#osSingleResult td,#osFormResult td{min-width:60px}
+#openDataStudio select{font-size:13px}
+@media(max-width:620px){
+ .os-heading{display:block}
+ .os-source-mark{display:inline-flex;margin:0 0 14px}
+ .os-score{gap:7px;padding:12px 7px}
+ .os-score b{font-size:11px}
+ .os-score strong{font-size:22px}
+ .os-explainer{display:block}
+ .os-explainer span{display:block;margin-bottom:7px}
+ #openDataStudio .actions button{flex:1 1 100%}
+}
