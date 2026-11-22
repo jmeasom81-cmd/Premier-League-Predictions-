@@ -70,3 +70,16 @@
  .os-explainer span{display:block;margin-bottom:7px}
  #openDataStudio .actions button{flex:1 1 100%}
 }
+
+/* StatsBomb research shot maps: responsive and accessible on Android */
+.os-map-heading{margin:22px 0 9px}
+.os-pitch-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:13px 0 15px}
+.os-pitch-card{background:#102637;border:1px solid #35556a;border-radius:13px;padding:12px;min-width:0}
+.os-pitch-card h4{font-size:14px;margin:2px 0 11px;line-height:1.4}
+.os-pitch{display:block;width:100%;height:auto;border-radius:9px}
+.os-pitch circle{transition:opacity .15s}
+.os-pitch-facts{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.os-pitch-facts b,.os-pitch-facts span{font-size:11px;color:#d5e9f6;background:#213b4b;border-radius:6px;padding:5px 7px}
+.os-pitch-facts b{color:#99efcc}
+.os-pitch-card .os-small{line-height:1.6}
+@media(max-width:760px){.os-pitch-grid{grid-template-columns:1fr}}
