@@ -87,3 +87,16 @@ The comparison screen contrasts two clubs using matching home/away venues and th
 Portable backup/restore includes the new stats array alongside all previously supported sections, with a 7600-record limit and a 7 MB file-size cap. Existing version-3 backups without the additional key remain compatible.
 
 Functional testing: a 2025/26 CSV-format sample (380 completed Premier League rows) was parsed into 380 detailed records and cross-checked against the OpenFootball archive, with 380 matched scores, no mismatches and no extra records on repeated import. An entire simulated application startup plus import populated the detailed comparisons and Match Insights without a thrown JavaScript exception. Live graphical browser and original-host CSV download still need user-device verification.
+
+## Football-only StatsBomb Open Data Lab (November 2026)
+
+The Match Statistics screen now contains a football-only **Open Data Lab** that is completely separate from the optional CSV importer. It uses [Hudl StatsBomb Open Data](https://github.com/hudl/open-data), not bookmaker feeds or football-data.co.uk, so users can continue to keep Gamban protection enabled.
+
+- Official historical match index is at `open-stats-catalog.json`, containing exactly **380 Premier League games from 2015/16** and **38 Arsenal games from 2003/04**. This is **not** a 15-season advanced-statistics archive. Users can browse all indexed fixtures and select a historic club.
+- `/api/open-stats?match=<approved-id>` is a GET-only same-domain serverless endpoint. It will only request a match ID on the hardcoded verified allowlist, downloads the corresponding `data/events/<id>.json` from the official Hudl StatsBomb GitHub open-data repository, and returns a compact aggregate rather than transferring huge event files to mobile clients. It times out after 18 seconds and limits event-file size to 15 MB. Event file access could fail or change; the app shows a non-destructive error.
+- `open-stats.js` shows shots, approximate on-target shots, StatsBomb expected goals (sum of shot event `statsbomb_xg`), passes, completed passes, corners, fouls, yellow/red cards and top shooters for the selected archived game. The "last five" button computes a clearly marked historical five-game *sample*, excluding failed matches and null xG data rather than using zeros.
+- Source attribution and the original StatsBomb logo from the source repo are displayed in the interface, according to the public open-data README instructions. The repo's own `LICENSE.pdf` and terms govern any external redistribution or new uses.
+- StatsBomb source data is for descriptive historical analysis. No post-match event metrics are added to a pre-match prediction model. Betting data, betting endpoints and gambler-protection bypasses are not involved.
+- Viewer mode `?viewer=1` can freely explore these READ-only analyses. These requests cannot modify Predictions game data, user accounts, the shared feed, or browser history.
+- Tests: source metadata verified for 380+38 fixtures, API aggregate tested with expected xG/shot/pass/card sample events and 404/405 requests, and frontend match and 5-game analysis checked using deterministic service mocks. Live server-to-GitHub connectivity should be checked on Vercel after deployment.
+
