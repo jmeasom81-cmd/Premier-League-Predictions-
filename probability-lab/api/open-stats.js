@@ -7,7 +7,8 @@ const MAX_EVENT_BYTES=15000000;
 const positiveNumber=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0?v:null;
 const nameOf=v=>v&&typeof v.name==='string'?v.name:'';
 function aggregate(events){
- const teams=new Map(),players=new Map();
+ const teams=new Map(),players=new Map(),shots=[];
+ let tally=0;
  const stats=name=>{
   if(!teams.has(name))teams.set(name,{team:name,shots:0,onTarget:0,xg:0,xgShots:0,passes:0,completedPasses:0,corners:0,fouls:0,yellow:0,red:0,penalties:0});
   return teams.get(name);
@@ -26,6 +27,17 @@ function aggregate(events){
    const outcome=nameOf(e.shot?.outcome);
    if(['Goal','Saved','Saved to Post'].includes(outcome))t.onTarget++;
    const xg=positiveNumber(e.shot?.statsbomb_xg);
+   // StatsBomb coordinates run 0–120 by 0–80. Unavailable positions stay null.
+   const loc=Array.isArray(e.location)&&e.location.length>=2&&
+    e.location.slice(0,2).every(n=>typeof n==='number'&&Number.isFinite(n))&&
+    e.location[0]>=0&&e.location[0]<=120&&e.location[1]>=0&&e.location[1]<=80
+     ? [Math.round(e.location[0]*10)/10,Math.round(e.location[1]*10)/10]:null;
+   tally++;
+   if(shots.length<100)shots.push({
+    team,player:nameOf(e.player),minute:Number.isSafeInteger(e.minute)&&e.minute>=0?e.minute:null,
+    outcome,isGoal:outcome==='Goal',xg:xg===null?null:Math.round(xg*1000)/1000,
+    location:loc,penalty:nameOf(e.shot?.type)==='Penalty'
+   });
    if(xg!==null){t.xg+=xg;t.xgShots++}
    if(nameOf(e.shot?.type)==='Penalty')t.penalties++;
    const player=nameOf(e.player);
@@ -48,7 +60,7 @@ function aggregate(events){
  const round=n=>Math.round(n*100)/100;
  const teamRows=[...teams.values()].map(t=>({...t,xg:t.xgShots?round(t.xg):null,passCompletion:t.passes?Math.round(t.completedPasses/t.passes*1000)/10:null}));
  const leaders=[...players.values()].sort((a,b)=>b.shots-a.shots||b.xg-a.xg).slice(0,8).map(p=>({...p,xg:p.xgShots?round(p.xg):null}));
- return {teams:teamRows,leaders};
+ return {teams:teamRows,leaders,shots,shotsTruncated:tally>100};
 }
 export default async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'GET only'});
