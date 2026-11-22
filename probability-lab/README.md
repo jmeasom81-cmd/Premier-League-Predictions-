@@ -100,3 +100,11 @@ The Match Statistics screen now contains a football-only **Open Data Lab** that 
 - Viewer mode `?viewer=1` can freely explore these READ-only analyses. These requests cannot modify Predictions game data, user accounts, the shared feed, or browser history.
 - Tests: source metadata verified for 380+38 fixtures, API aggregate tested with expected xG/shot/pass/card sample events and 404/405 requests, and frontend match and 5-game analysis checked using deterministic service mocks. Live server-to-GitHub connectivity should be checked on Vercel after deployment.
 
+
+## Shot maps and five-game xG research (November 2026)
+
+The Football Open Data Lab now shows a **shot-location map for each team** when analysing a permitted historic StatsBomb fixture. Shot positions come directly from StatsBomb 120×80 pitch coordinates; invalid or missing positions are excluded, not estimated. The marker colour distinguishes goals, saves and other shots; marker size scales with shot xG where present. Each marker contains player, minute, outcome and source xG in a tooltip. The API sends a compact capped list of up to 100 shot events, while full-match headline statistics remain uncapped.
+
+The **Analyse last five games** action now adds individual match scorelines, xG for, xG against and xG difference, newest first. Missing xG is never assumed to be zero, and a difference is shown only when both teams have xG. The feature uses historical 2015/16 or Arsenal 2003/04 samples only. It does **not** substitute xG for a current fixture, alter pre-match probabilities or require a betting source.
+
+A source-contract test was added in `tests/open-stats-shotmaps.test.mjs`. It checks that invalid locations and absent xG remain null, valid positions are rounded safely, the endpoint remains GET-only and match IDs remain allowlisted, and the new frontend code parses.
