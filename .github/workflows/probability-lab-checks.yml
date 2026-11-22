@@ -1,0 +1,27 @@
+name: Probability Lab source checks
+
+on:
+  push:
+    paths:
+      - 'probability-lab/**'
+      - '.github/workflows/probability-lab-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-open-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch reviewed source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check JavaScript syntax
+        run: |
+          node --version
+          node --check probability-lab/api/open-stats.js
+          node --check probability-lab/open-stats.js
+      - name: Run offline StatsBomb contract tests
+        run: node --test probability-lab/tests/open-stats-shotmaps.test.mjs
