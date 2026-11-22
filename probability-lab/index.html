@@ -104,6 +104,32 @@ body.pl-viewer-mode #data .filebox{opacity:.55;pointer-events:none}
       <div class="notice">No external statistics download is required to use Probability Lab. Use the existing Club Explorer, Match Insights and historical season analysis immediately.</div>
       <div class="actions"><button class="btn secondary" data-goto="clubs">Open Club Explorer</button><button class="btn secondary" data-goto="intel">Open Match Insights</button></div>
     </div>
+    <div class="panel" id="openDataStudio">
+      <div class="os-heading">
+        <div>
+          <h2>New · Football Open Data Lab</h2>
+          <p class="hint">Real historical shots, xG, passes, corners, fouls and cards — from <b>StatsBomb Open Data</b>, a football analytics research source. No betting websites, bookmaker odds or Gamban workarounds.</p>
+        </div>
+        <a class="os-source-mark" href="https://github.com/hudl/open-data" target="_blank" rel="noopener noreferrer" aria-label="Original StatsBomb Open Data research repository"><img src="https://raw.githubusercontent.com/hudl/open-data/master/img/SB%20-%20Icon%20Lockup%20-%20Colour%20positive.png" loading="lazy" alt="StatsBomb data source logo"></a>
+      </div>
+      <div class="notice"><strong>Data coverage:</strong> A complete Premier League season from <strong>2015/16 (380 games)</strong> and <strong>38 Arsenal games from 2003/04</strong>. The newer seasons in our results archive do <em>not</em> have these event-level statistics. No estimates are substituted for missing matches.</div>
+      <div class="fields three">
+        <div class="field"><label for="osSeason">Historic dataset</label><select id="osSeason"><option value="2015/16">Premier League 2015/16</option><option value="2003/04">Arsenal 2003/04 only</option></select></div>
+        <div class="field"><label for="osClub">Club</label><select id="osClub"></select></div>
+        <div class="field"><label for="osMatch">Archived match</label><select id="osMatch"></select></div>
+      </div>
+      <div class="os-explainer"><span id="osCoverage">Checking coverage…</span><span id="osMatchCount">Checking matches…</span></div>
+      <div class="actions"><button class="btn" id="osAnalyzeMatch">Analyse match</button><button class="btn secondary" id="osAnalyzeForm">Analyse last five games</button></div>
+      <p id="osMessage" class="os-message" role="status">Preparing official football-only data…</p>
+      <div class="divider"></div>
+      <h3>Individual match event analysis</h3>
+      <div id="osSingleResult" class="hint">Choose a historical fixture to analyse.</div>
+      <div class="divider"></div>
+      <h3>Small-sample club performance</h3>
+      <div id="osFormResult" class="hint">Choose a club and analyse its last five matches from the selected historical dataset.</div>
+      <div class="divider"></div>
+      <p class="fine">Football event source and credit: <a href="https://github.com/hudl/open-data" target="_blank" rel="noopener noreferrer">StatsBomb Open Data (Hudl)</a>, shared for football analytics research. We load only a compact on-demand match summary; the full event files are not stored on your phone. Open Data is historical, not a live football service, and the estimates displayed do not change our prediction model.</p>
+    </div>
     <div class="panel">
       <h2>Optional: import an existing football-statistics CSV</h2>
       <p class="hint">Only use a CSV you already possess and have permission to use. The file is processed locally in this browser; nothing is uploaded to our servers. There is no requirement to visit a blocked data website.</p>
@@ -390,4 +416,4 @@ fetch('/api/config').then(function(r){if(!r.ok)throw Error('Configuration status
 }).catch(function(){setText('fixturesMessage','Offline features remain available. Live API readiness could not be checked.');});
 
 })();
-</script><script src="/v2.js"></script><script src="/v3.js"></script><script src="/history-import.js"></script><script src="/match-stats.js"></script><script src="/viewer.js"></script></body></html>
+</script><script src="/v2.js"></script><script src="/v3.js"></script><script src="/history-import.js"></script><script src="/match-stats.js"></script><script src="/viewer.js"></script><script src="/open-stats.js"></script></body></html>
