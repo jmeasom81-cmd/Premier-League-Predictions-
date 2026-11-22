@@ -59,6 +59,50 @@ function statRow(name,a,b,unit=''){
  const disp=v=>v==null?'—':typeof v==='number'?safeNum(v,unit===' xG'?2:unit==='%'?1:0)+unit:esc(asText(v));
  return '<tr><th>'+esc(name)+'</th><td>'+disp(a)+'</td><td>'+disp(b)+'</td></tr>';
 }
+
+function renderShotPitch(team,allShots){
+ const rows=allShots.filter(s=>s&&core.norm(s.team)===core.norm(team));
+ const valid=rows.filter(s=>Array.isArray(s.location)&&s.location.length>=2&&
+  Number.isFinite(s.location[0])&&Number.isFinite(s.location[1])&&
+  s.location[0]>=0&&s.location[0]<=120&&s.location[1]>=0&&s.location[1]<=80);
+ const xgKnown=rows.filter(s=>typeof s.xg==='number'&&Number.isFinite(s.xg));
+ const xgTotal=xgKnown.reduce((n,s)=>n+s.xg,0);
+ const boxShots=valid.filter(s=>s.location[0]>=102&&s.location[1]>=18&&s.location[1]<=62).length;
+ const dots=valid.map(s=>{
+  const cx=(20+s.location[0]*560/120).toFixed(1),cy=(20+s.location[1]*360/80).toFixed(1);
+  const radius=s.xg==null?5:Math.min(16,5+11*Math.sqrt(Math.max(0,s.xg)));
+  const fill=s.isGoal?'#ffcd7d':['Saved','Saved to Post'].includes(s.outcome)?'#62dddb':'#c4d0dc';
+  const desc=(s.player||'Unknown player')+' · '+(s.minute==null?'minute unknown':s.minute+'′')+
+   ' · '+(s.outcome||'shot')+' · '+(s.xg==null?'xG unavailable':'xG '+safeNum(s.xg,3));
+  return '<circle cx="'+cx+'" cy="'+cy+'" r="'+radius.toFixed(1)+'" fill="'+fill+
+   '" stroke="#092333" stroke-width="1.8" opacity=".92"><title>'+esc(desc)+'</title></circle>';
+ }).join('');
+ const coverage=xgKnown.length===rows.length?'':' · xG on '+xgKnown.length+'/'+rows.length+' shots';
+ return '<div class="os-pitch-card"><h4>'+esc(team)+'</h4>'+
+  '<div class="os-pitch-facts"><b>'+rows.length+' shots</b><span>'+valid.length+' locations</span>'+
+  '<span>'+boxShots+' inside box</span><span>'+(
+   xgKnown.length===rows.length?safeNum(xgTotal,2)+' xG':xgKnown.length?safeNum(xgTotal,2)+' xG (partial)':'xG unavailable'
+  )+'</span></div>'+
+  '<svg class="os-pitch" viewBox="0 0 600 400" role="img" aria-label="'+esc(team)+' shot map; goal is to the right">'+
+   '<rect x="20" y="20" width="560" height="360" rx="4" fill="#123b39" stroke="#b9e4d4" stroke-width="2"/>'+
+   '<path d="M300 20 V380 M20 20 H580 V380 H20 Z" fill="none" stroke="#a4d1c4" stroke-width="1.4"/>'+
+   '<circle cx="300" cy="200" r="54" stroke="#a4d1c4" stroke-width="1.4" fill="none"/>'+
+   '<rect x="20" y="101" width="84" height="198" stroke="#a4d1c4" fill="none" stroke-width="1.5"/>'+
+   '<rect x="496" y="101" width="84" height="198" stroke="#a4d1c4" fill="none" stroke-width="1.5"/>'+
+   '<rect x="20" y="155" width="28" height="90" stroke="#a4d1c4" fill="none" stroke-width="1.4"/>'+
+   '<rect x="552" y="155" width="28" height="90" stroke="#a4d1c4" fill="none" stroke-width="1.4"/>'+
+   '<circle cx="76" cy="200" r="3" fill="#d6efe9"/><circle cx="524" cy="200" r="3" fill="#d6efe9"/>'+
+   dots+'</svg><p class="os-small">'+rows.length+' shots · '+valid.length+
+  ' plotted'+coverage+'. Marker size reflects xG when available.</p></div>';
+}
+function renderShotMaps(match,summary){
+ if(!Array.isArray(summary.shots))return '';
+ return '<h3 class="os-map-heading">Shot-location maps</h3>'+
+  '<p class="hint">Both teams attack to the right in these normalized StatsBomb event coordinates. Gold = goal; turquoise = saved; grey = other shot. On a supported device, tap or hover over a marker for the player, minute, outcome and xG.</p>'+
+  '<div class="os-pitch-grid">'+renderShotPitch(match[2],summary.shots)+renderShotPitch(match[3],summary.shots)+'</div>'+
+  (summary.shotsTruncated?'<p class="hint">The map is limited to the first 100 shot events; full-match totals above remain complete.</p>':'')+
+  '<p class="fine">Historical post-match data, not live form or an input to the pre-match probability model. Shot positions without valid source coordinates are not plotted.</p>';
+}
 function matchSummary(match,summary){
  const byName=new Map(summary.teams.map(t=>[core.norm(t.team),t]));
  const home=byName.get(core.norm(match[2]))||null,away=byName.get(core.norm(match[3]))||null;
@@ -72,6 +116,7 @@ function matchSummary(match,summary){
  return '<div class="os-score"><div><b>'+esc(match[2])+'</b><div class="os-small">Home</div></div><strong>'+match[4]+'–'+match[5]+'</strong><div><b>'+esc(match[3])+'</b><div class="os-small">Away</div></div></div>'+
  '<p class="hint">'+esc(match[1])+' · '+safeNum(summary.eventCount)+' event records · Historical match, not a current fixture</p>'+
  '<div class="tablewrap"><table><thead><tr><th>Official open-data measure</th><th>'+esc(match[2])+'</th><th>'+esc(match[3])+'</th></tr></thead><tbody>'+table+'</tbody></table></div>'+
+ renderShotMaps(match,summary)+
  (leaders.length?'<h3 style="margin-top:18px">Players with the most shots</h3><div class="tablewrap"><table><thead><tr><th>Player</th><th>Team</th><th>Shots</th><th>Goals</th><th>xG</th></tr></thead><tbody>'+leaders.slice(0,8).map(p=>'<tr><td>'+esc(p.player)+'</td><td>'+esc(p.team)+'</td><td>'+safeNum(p.shots)+'</td><td>'+safeNum(p.goals)+'</td><td>'+safeNum(p.xg,2)+'</td></tr>').join('')+'</tbody></table></div>':'')+
  '<p class="fine">xG is summed from individual StatsBomb shot events. "On target" uses shot outcomes Goal, Saved or Saved to Post and may differ from other providers. Passes include some set pieces; event-based statistics are not automatically equivalent to official league tables.</p>';
 }
@@ -106,7 +151,7 @@ async function recent(){
   try{
    const stats=await getMatch(rows[i][0]);
    const t=stats.teams.find(x=>core.norm(x.team)===core.norm(selected));
-   if(t)results.push({match:rows[i],stats:t});
+   if(t)results.push({match:rows[i],stats:t,opponent:stats.teams.find(x=>core.norm(x.team)===core.norm(rows[i][2]===selected?rows[i][3]:rows[i][2]))||null});
    else failures.push(rows[i][1]+' (team event data unavailable)');
   }catch(e){failures.push(rows[i][1])}
  }
@@ -119,7 +164,20 @@ async function recent(){
   const mean=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
   body+='<tr><td>'+esc(label)+'</td><td>'+safeNum(mean,key==='xg'?2:1)+'</td><td>'+vals.length+'/'+results.length+'</td></tr>';
  }
- body+='</tbody></table></div><p class="fine">'+results.map(r=>esc(r.match[1]+' '+(r.match[2]===selected?r.match[3]:r.match[2]))).join(' · ')+'</p>';
+ body+='</tbody></table></div><h3 style="margin-top:20px">Game-by-game expected goals</h3>'+
+  '<p class="hint">Newest first. The scorelines are actual results; xG is a historical shot-quality measure, not a forecast.</p>'+
+  '<div class="tablewrap"><table><thead><tr><th>Match</th><th>Score</th><th>xG for</th><th>xG against</th><th>xG difference</th></tr></thead><tbody>';
+ for(const item of results){
+  const row=item.match,home=row[2]===selected,opponent=home?row[3]:row[2];
+  const goalsFor=home?row[4]:row[5],goalsAgainst=home?row[5]:row[4];
+  const forXg=item.stats.xg,againstXg=item.opponent?item.opponent.xg:null;
+  const difference=Number.isFinite(forXg)&&Number.isFinite(againstXg)?forXg-againstXg:null;
+  body+='<tr><td>'+esc(row[1]+' · '+opponent)+'</td><td>'+goalsFor+'–'+goalsAgainst+'</td>'+
+   '<td>'+safeNum(forXg,2)+'</td><td>'+safeNum(againstXg,2)+'</td>'+
+   '<td>'+safeNum(difference,2)+'</td></tr>';
+ }
+ body+='</tbody></table></div><p class="fine">Missing source xG stays unavailable (—), never zero. A difference is calculated only when both teams have xG.</p>';
+ body+='<p class="fine">'+results.map(r=>esc(r.match[1]+' '+(r.match[2]===selected?r.match[3]:r.match[2]))).join(' · ')+'</p>';
  if(failures.length)body+='<p class="hint">Excluded '+failures.length+' matches whose event data could not be loaded. Missing results are not treated as zero.</p>';
  $('osFormResult').innerHTML=body;
  msg('Loaded '+results.length+' valid historical match summaries; '+failures.length+' unavailable.');
